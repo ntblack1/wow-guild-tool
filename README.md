@@ -70,15 +70,25 @@ npm run test:web
 1. 在 Supabase 创建新项目。
 2. 打开 Supabase SQL Editor。
 3. 执行 `supabase/schema.sql` 中的全部 SQL。
-4. 打开 Authentication，启用 Email 登录。
+4. 打开 Authentication > Providers > Email，关闭 `Confirm email`（确认邮箱）。
 5. 在 Project Settings 中找到 Project URL 和 anon public key。
 6. 填入本地 `.env` 和 Cloudflare Pages 环境变量。
 
-如果之前已经执行过旧版 SQL，也可以重新执行当前 `supabase/schema.sql`。脚本会修正报名状态、论坛板块的中文 check 约束，并增加取消报名所需的删除策略。
+第一版登录使用工会口令 + 账号密码。成员先回答“会长口头禅是什么”，输入 `说这些` 后即可创建账号和密码；之后直接用账号密码登录。成员不需要填写真实邮箱，程序会在内部生成专用登录地址，并由 Supabase Auth 安全保存密码和登录会话。
+
+如果之前已经执行过旧版 SQL，也可以重新执行当前 `supabase/schema.sql`。脚本会修正中文约束、删除旧的自建密码表，并把写入权限绑定到 Supabase 登录身份。旧测试版创建的本地账号不能继续使用，需要重新创建一次账号。
+
+账号只能使用 3-20 位小写字母、数字和下划线；工会昵称可以使用中文。口令是第一版内部测试的注册门槛，不应当作高强度安全措施。
 
 ### 设置管理员
 
-用户第一次通过邮箱登录后，会自动写入 `profiles`。把某个用户设为管理员：
+用户第一次通过工会口令创建账号后，Supabase 会自动写入 `profiles`。在 SQL Editor 中先查看用户：
+
+```sql
+select id, display_name, role from public.profiles order by created_at desc;
+```
+
+把某个用户设为管理员：
 
 ```sql
 update public.profiles
@@ -111,7 +121,8 @@ where id = '用户 uuid';
 ## 当前 MVP 功能
 
 - 首页展示工会名称、最近活动、最新帖子、入口和成员图。
-- 邮箱登录。
+- 工会口令创建账号，之后使用账号密码登录。
+- 密码和登录会话由 Supabase Auth 管理，数据库写入受登录身份和角色权限保护。
 - 用户创建、编辑、删除自己的多个角色。
 - 管理员/团长创建活动。
 - 活动列表显示报名人数、人数上限、状态和当前阵容缺口。
