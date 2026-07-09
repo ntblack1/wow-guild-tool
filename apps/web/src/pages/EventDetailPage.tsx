@@ -1,0 +1,212 @@
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { EmptyState } from "../components/EmptyState";
+import { ErrorState } from "../components/ErrorState";
+import { Field } from "../components/Field";
+import { LoadingState } from "../components/LoadingState";
+import { SectionTitle } from "../components/SectionTitle";
+import { StatusBadge } from "../components/StatusBadge";
+import { isSupabaseConfigured } from "../lib/supabase";
+import { getCurrentUser } from "../services/auth";
+import { listCharacters } from "../services/characters";
+import { getEvent } from "../services/events";
+import { describeSignupConflict, eventRoleNeeds, formatDateTime, groupSignupsByRole, statusLabel } from "../services/format";
+import { getProfile } from "../services/profiles";
+import { createSignup, deleteSignup, listEventSignups, updateSignupStatus } from "../services/signups";
+import { signupStatuses, type GuildCharacter, type GuildEvent, type Profile, type Signup, type SignupStatus } from "../types";
+
+const roleTitles = {
+  T: "坦克",
+  N: "治疗",
+  DPS: "输出",
+} as const;
+
+export function EventDetailPage() {
+  const { eventId = "" } = useParams();
+  const [guildEvent, setGuildEvent] = useState<GuildEvent | null>(null);
+  const [signups, setSignups] = useState<Signup[]>([]);
+  const [characters, setCharacters] = useState<GuildCharacter[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [userId, setUserId] = useState("");
+  const [characterId, setCharacterId] = useState("");
+  const [note, setNote] = useState("");
+  const [loading, setLoading] = useState(isSupabaseConfigured);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const canManage = profile?.role === "admin" || profile?.role === "leader";
+  const grouped = useMemo(() => groupSignupsByRole(signups), [signups]);
+  const mySignup = signups.find((signup) => signup.user_id === userId) ?? null;
+
+  async function refresh() {
+    setGuildEvent(await getEvent(eventId));
+    setSignups(await listEventSignups(eventId));
+    const user = await getCurrentUser();
+    setUserId(user?.id ?? "");
+    if (user) {
+      setProfile(await getProfile(user.id));
+      const rows = await listCharacters(user.id);
+      setCharacters(rows);
+      setCharacterId((current) => current || rows[0]?.id || "");
+    } else {
+      setProfile(null);
+      setCharacters([]);
+      setCharacterId("");
+    }
+  }
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !eventId) return;
+    refresh()
+      .catch((caught) => setError(caught instanceof Error ? caught.message : "读取活动详情失败"))
+      .finally(() => setLoading(false));
+  }, [eventId]);
+
+  async function handleSignup(eventSubmit: FormEvent) {
+    eventSubmit.preventDefault();
+    const character = characters.find((item) => item.id === characterId);
+    if (!userId || !character || submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await createSignup({
+        event_id: eventId,
+        character_id: character.id,
+        user_id: userId,
+        combat_role: character.combat_role,
+        note,
+      });
+      setNote("");
+      await refresh();
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      setError(describeSignupConflict(message));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleCancelSignup() {
+    if (!mySignup || submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await deleteSignup(mySignup.id);
+      await refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "取消报名失败");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleStatusChange(signup: Signup, status: SignupStatus) {
+    setError("");
+    try {
+      await updateSignupStatus(signup.id, status);
+      await refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "修改报名状态失败");
+    }
+  }
+
+  if (!isSupabaseConfigured) return <ErrorState message="请先配置 Supabase 环境变量。" />;
+  if (loading) return <LoadingState />;
+  if (!guildEvent) return <EmptyState title="活动不存在" description="这个活动可能已经被删除。" />;
+
+  return (
+    <section className="space-y-4">
+      {error ? <ErrorState message={error} /> : null}
+      <article className="guild-card overflow-hidden p-0">
+        <div className="h-36 bg-[linear-gradient(135deg,#BEE7FF,#FFD89A_52%,#FFF0D6)]" />
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-guild-muted">{guildEvent.raid_name}</p>
+              <h1 className="text-2xl font-black text-guild-ink">{guildEvent.title}</h1>
+            </div>
+            <StatusBadge>{statusLabel(guildEvent.status)}</StatusBadge>
+          </div>
+          <p className="mt-3 text-sm text-guild-muted">
+            {formatDateTime(guildEvent.starts_at)} · 上限 {guildEvent.capacity} 人 · {signups.length} 人已报名 · {eventRoleNeeds(signups)}
+          </p>
+          {guildEvent.description ? <p className="mt-3 whitespace-pre-wrap text-sm leading-6">{guildEvent.description}</p> : null}
+        </div>
+      </article>
+
+      <section className="guild-card grid gap-3">
+        <h2 className="font-black text-guild-ink">我的报名</h2>
+        {!userId ? (
+          <div className="grid gap-3">
+            <ErrorState message="请先登录后再报名。" />
+            <Link className="guild-button text-center" to="/auth">去登录</Link>
+          </div>
+        ) : !characters.length ? (
+          <div className="grid gap-3">
+            <ErrorState message="你还没有角色，请先创建角色。" />
+            <Link className="guild-button text-center" to="/characters">先创建角色</Link>
+          </div>
+        ) : mySignup ? (
+          <div className="rounded-md bg-white/70 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-bold text-guild-ink">{mySignup.character?.name ?? "我的角色"}</p>
+                <p className="mt-1 text-sm text-guild-muted">
+                  {mySignup.character?.class_name} · {mySignup.character?.spec} · {roleTitles[mySignup.combat_role]}
+                </p>
+              </div>
+              <StatusBadge>{mySignup.status}</StatusBadge>
+            </div>
+            {mySignup.note ? <p className="mt-2 text-sm text-guild-muted">{mySignup.note}</p> : null}
+            <button className="guild-button-secondary mt-3" disabled={submitting} onClick={handleCancelSignup} type="button">
+              取消报名
+            </button>
+          </div>
+        ) : (
+          <form className="grid gap-3" onSubmit={handleSignup}>
+            <Field label="角色">
+              <select className="guild-input" value={characterId} onChange={(e) => setCharacterId(e.target.value)}>
+                {characters.map((character) => (
+                  <option key={character.id} value={character.id}>
+                    {character.name} / {character.class_name} / {character.spec} / {character.combat_role}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="备注">
+              <textarea className="guild-input" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="迟到、可转天赋、只打前几等都可以写这里" />
+            </Field>
+            <button className="guild-button" disabled={submitting || !characterId}>报名</button>
+          </form>
+        )}
+      </section>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        {(["T", "N", "DPS"] as const).map((role) => (
+          <section className="guild-card" key={role}>
+            <SectionTitle title={roleTitles[role]} />
+            <div className="mt-3 space-y-2">
+              {grouped[role].length ? grouped[role].map((signup) => (
+                <div className="rounded-md bg-white/70 p-3" key={signup.id}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-guild-ink">{signup.character?.name ?? "未知角色"}</span>
+                    <StatusBadge>{signup.status}</StatusBadge>
+                  </div>
+                  <p className="mt-1 text-xs text-guild-muted">
+                    {signup.character?.class_name ?? "未知职业"} · {signup.character?.spec ?? "未知天赋"}
+                    {signup.character?.item_level ? ` · ${signup.character.item_level} 装等` : ""}
+                  </p>
+                  {signup.note ? <p className="mt-2 text-sm text-guild-muted">{signup.note}</p> : null}
+                  {canManage ? (
+                    <select className="guild-input mt-2 min-h-9 text-sm" value={signup.status} onChange={(e) => void handleStatusChange(signup, e.target.value as SignupStatus)}>
+                      {signupStatuses.map((status) => <option key={status}>{status}</option>)}
+                    </select>
+                  ) : null}
+                </div>
+              )) : <p className="text-sm text-guild-muted">暂无报名</p>}
+            </div>
+          </section>
+        ))}
+      </div>
+    </section>
+  );
+}

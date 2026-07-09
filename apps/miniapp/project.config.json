@@ -1,0 +1,28 @@
+{
+    "appid": "wx5411290b6db73c10",
+    "projectname": "wow-guild-tool",
+    "miniprogramRoot": "",
+    "compileType": "miniprogram",
+    "setting": {
+        "urlCheck": false,
+        "es6": true,
+        "postcss": true,
+        "minified": false,
+        "babelSetting": {
+            "ignore": [],
+            "disablePlugins": [],
+            "outputPath": ""
+        },
+        "condition": false
+    },
+    "libVersion": "3.16.2",
+    "packOptions": {
+        "ignore": [],
+        "include": []
+    },
+    "condition": {},
+    "editorSetting": {
+        "tabIndent": "insertSpaces",
+        "tabSize": 4
+    }
+}

@@ -1,0 +1,33 @@
+.signup-hero {
+  min-height: 168rpx;
+  background:
+    linear-gradient(135deg, rgba(64, 43, 21, 0.96), rgba(20, 15, 11, 0.98)),
+    #2c2015;
+}
+
+.signup-title {
+  margin-top: 16rpx;
+  margin-bottom: 8rpx;
+}
+
+.form-panel {
+  padding-top: 30rpx;
+}
+
+.error-card {
+  color: #ffd2c2;
+  background:
+    linear-gradient(180deg, rgba(89, 31, 22, 0.94), rgba(36, 18, 13, 0.96)),
+    #331812;
+  border-color: rgba(229, 116, 83, 0.72);
+}
+
+.picker {
+  display: flex;
+  align-items: center;
+}
+
+.submit-button {
+  width: 100%;
+  margin-top: 8rpx;
+}

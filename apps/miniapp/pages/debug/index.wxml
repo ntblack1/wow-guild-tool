@@ -1,0 +1,48 @@
+<view class="page debug-page">
+  <view class="card debug-hero">
+    <view class="eyebrow">调试面板</view>
+    <view class="title hero-title">本地联调状态</view>
+    <view class="debug-line">API 地址：{{apiBaseUrl}}</view>
+    <view class="subtitle">默认地址：{{configuredApiBaseUrl}}</view>
+    <view class="subtitle">本机保存地址：{{storedApiBaseUrl || "未设置"}}</view>
+  </view>
+
+  <view class="card">
+    <view class="title">成员上下文</view>
+    <view class="debug-line">本地选择成员：{{selectedMemberId || "未选择"}}</view>
+    <view class="debug-line">当前可用 memberId：{{currentMemberId}}</view>
+    <view class="debug-line">团长成员：{{leaderId}}</view>
+  </view>
+
+  <view class="card">
+    <view class="title">后端地址</view>
+    <view class="field">
+      <view class="label">API_BASE_URL</view>
+      <input class="input" value="{{apiBaseUrlInput}}" bindinput="changeApiBaseUrl" placeholder="例如 https://api.example.com" />
+    </view>
+    <view class="button-row">
+      <button class="primary-button" bindtap="saveApiBaseUrl">保存地址</button>
+      <button class="secondary-button" bindtap="clearApiBaseUrl">恢复默认</button>
+    </view>
+  </view>
+
+  <view wx:if="{{currentMember}}" class="card">
+    <view class="title">当前成员详情</view>
+    <view class="debug-line">{{currentMember.displayName}}</view>
+    <view class="subtitle">工会名：{{currentMember.guildName || "-"}}</view>
+    <view class="subtitle">身份：{{currentMember.role || "member"}}</view>
+  </view>
+
+  <view class="card">
+    <view class="button-row debug-actions">
+      <button class="primary-button" bindtap="testHealth" loading="{{checking}}">测试后端健康检查</button>
+      <button class="secondary-button" bindtap="showSeedHelp">创建测试数据</button>
+      <button class="danger-button" bindtap="clearMember">清除当前成员</button>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="title">最近一次请求结果</view>
+    <textarea class="textarea result" value="{{lastResult}}" disabled />
+  </view>
+</view>

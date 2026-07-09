@@ -1,0 +1,27 @@
+.debug-hero {
+  background:
+    linear-gradient(135deg, rgba(39, 44, 63, 0.96), rgba(18, 13, 9, 0.98)),
+    #1c1a1a;
+}
+
+.hero-title {
+  margin-top: 14rpx;
+  margin-bottom: 12rpx;
+}
+
+.debug-line {
+  margin-top: 8rpx;
+  color: #ead6a9;
+  font-size: 25rpx;
+  word-break: break-all;
+}
+
+.debug-actions button {
+  margin-bottom: 8rpx;
+}
+
+.result {
+  min-height: 300rpx;
+  font-size: 24rpx;
+  line-height: 1.55;
+}

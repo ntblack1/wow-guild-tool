@@ -1,0 +1,17 @@
+services:
+  server:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run db:migrate && npm run dev"
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "file:./dev.db"
+      PORT: "3000"
+      NODE_ENV: development
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+
+volumes:
+  node_modules:

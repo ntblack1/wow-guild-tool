@@ -1,0 +1,112 @@
+<view class="page my-page">
+  <view class="card member-hero">
+    <view class="row">
+      <view>
+        <view class="eyebrow">角色名册</view>
+        <view class="title member-title">我的信息</view>
+        <view class="subtitle">当前成员：{{selectedMemberId || "未选择"}}</view>
+        <view class="subtitle">配置兜底：{{currentMemberId}}</view>
+      </view>
+      <button class="secondary-button" size="mini" bindtap="loadMine">刷新</button>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="title">切换当前成员</view>
+    <view wx:if="{{memberOptions.length === 0}}" class="empty">暂无可选成员，请先运行测试数据。</view>
+    <picker wx:else range="{{memberOptions}}" value="{{memberIndex}}" bindchange="changeMember">
+      <view class="picker">选择成员：{{memberOptions[memberIndex]}}</view>
+    </picker>
+    <button class="secondary-button clear-button" bindtap="clearMember">清除当前成员</button>
+  </view>
+
+  <view wx:if="{{loading}}" class="empty">正在读取名册...</view>
+  <view wx:elif="{{member}}" class="card member-card">
+    <view class="title">{{member.displayName}}</view>
+    <view>工会名：{{member.guildName || "-"}}</view>
+    <view>身份：{{member.role || "member"}}</view>
+    <view class="subtitle">成员 ID：{{member.id}}</view>
+  </view>
+  <view wx:else class="card">
+    <view class="empty">请先选择成员，再维护角色和查看报名记录。</view>
+  </view>
+
+  <view class="section">
+    <view class="row section-title-row">
+      <view>
+        <view class="title">我的角色</view>
+        <view class="subtitle">主号、小号与出战职责</view>
+      </view>
+      <button class="secondary-button" size="mini" bindtap="startCreateCharacter">新增角色</button>
+    </view>
+
+    <view wx:if="{{!selectedMemberId}}" class="empty">还没有手动选择成员。可以先在上方选择，也可以直接点“新增角色”使用默认成员。</view>
+    <view wx:elif="{{characters.length === 0}}" class="empty">暂无角色，请先新增角色。</view>
+
+    <view wx:for="{{characters}}" wx:key="id" class="character-card">
+      <image class="character-avatar" src="{{item.avatar}}" mode="aspectFill" />
+      <view class="character-body">
+        <view class="row">
+          <view>
+            <view class="character-name">{{item.name}}</view>
+            <view class="subtitle">{{item.isMain ? "主号" : "小号"}}</view>
+          </view>
+          <view class="role-chip {{item.roleClassName}}">{{item.roleText}}</view>
+        </view>
+        <view class="character-meta">职业：{{item.className || item.class || "-"}}</view>
+        <view class="character-meta">专精：{{item.spec || "-"}}</view>
+        <view class="character-meta">装等：{{item.itemLevel || "-"}}</view>
+        <view class="button-row character-actions">
+          <button class="secondary-button" size="mini" data-id="{{item.id}}" bindtap="startEditCharacter">编辑</button>
+          <button class="secondary-button" size="mini" data-id="{{item.id}}" bindtap="setMain" disabled="{{item.isMain}}">设为主号</button>
+          <button class="danger-button" size="mini" data-id="{{item.id}}" bindtap="deleteCharacter">删除</button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showCharacterForm}}" class="card">
+    <view class="title">{{editingCharacterId ? "编辑角色" : "新增角色"}}</view>
+    <view class="field">
+      <view class="label">角色名</view>
+      <input class="input" value="{{characterForm.name}}" data-field="name" bindinput="changeCharacterField" />
+    </view>
+    <view class="field">
+      <view class="label">职业</view>
+      <input class="input" placeholder="例如 WARLOCK / PALADIN" value="{{characterForm.className}}" data-field="className" bindinput="changeCharacterField" />
+    </view>
+    <view class="field">
+      <view class="label">专精</view>
+      <input class="input" placeholder="例如 毁灭 / 防护" value="{{characterForm.spec}}" data-field="spec" bindinput="changeCharacterField" />
+    </view>
+    <view class="field">
+      <view class="label">职责</view>
+      <picker range="{{roleOptions}}" range-key="label" value="{{roleIndex}}" bindchange="changeCharacterRole">
+        <view class="picker">{{roleOptions[roleIndex].label}}</view>
+      </picker>
+    </view>
+    <view class="field">
+      <view class="label">装等</view>
+      <input class="input" type="number" placeholder="例如 245" value="{{characterForm.itemLevel}}" data-field="itemLevel" bindinput="changeCharacterField" />
+    </view>
+    <view class="checkbox-row">
+      <switch checked="{{characterForm.isMain}}" bindchange="changeCharacterMain" />设为主号
+    </view>
+    <view class="button-row">
+      <button class="primary-button" loading="{{savingCharacter}}" bindtap="saveCharacter">保存角色</button>
+      <button class="secondary-button" bindtap="cancelCharacterForm">取消</button>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="title">我的报名记录</view>
+    <view wx:if="{{signups.length === 0}}" class="empty">暂无报名记录</view>
+    <view wx:for="{{signups}}" wx:key="id" class="card signup-record">
+      <view class="title">{{item.event.title}}</view>
+      <view>副本：{{item.event.raidName}}</view>
+      <view>时间：{{item.startTimeText}}</view>
+      <view>角色：{{item.character.name}}</view>
+      <view class="subtitle">状态：{{item.statusText}} / {{item.roleText}}</view>
+    </view>
+  </view>
+</view>

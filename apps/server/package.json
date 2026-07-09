@@ -1,0 +1,25 @@
+{
+  "name": "@wow-guild-tool/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "test": "node ../../scripts/server-test.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@wow-guild-tool/shared": "0.1.0",
+    "express": "^4.21.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.8.6",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.2",
+    "vitest": "^2.1.4"
+  }
+}

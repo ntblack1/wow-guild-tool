@@ -1,0 +1,44 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/event-detail/index",
+    "pages/signup/index",
+    "pages/my/index",
+    "pages/leader/index",
+    "pages/debug/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "八块腹肌",
+    "navigationBarBackgroundColor": "#17120d",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#17120d"
+  },
+  "tabBar": {
+    "color": "#a89468",
+    "selectedColor": "#f1c15a",
+    "backgroundColor": "#17120d",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "活动"
+      },
+      {
+        "pagePath": "pages/my/index",
+        "text": "我的"
+      },
+      {
+        "pagePath": "pages/leader/index",
+        "text": "团长"
+      },
+      {
+        "pagePath": "pages/debug/index",
+        "text": "调试"
+      }
+    ]
+  },
+  "style": "v2",
+  "cloud": true,
+  "componentFramework": "glass-easel",
+  "sitemapLocation": "sitemap.json"
+}

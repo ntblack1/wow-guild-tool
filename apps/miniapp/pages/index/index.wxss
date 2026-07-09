@@ -1,0 +1,96 @@
+.home-page {
+  padding-bottom: 40rpx;
+}
+
+.guild-hero {
+  margin-bottom: 30rpx;
+}
+
+.home-title {
+  margin-top: 18rpx;
+  color: #ffe3a0;
+  font-size: 52rpx;
+  font-weight: 800;
+  line-height: 1.08;
+}
+
+.home-copy {
+  max-width: 430rpx;
+  margin-top: 14rpx;
+  color: #f6dc9e;
+  font-size: 26rpx;
+}
+
+.home-status {
+  display: inline-flex;
+  margin-top: 26rpx;
+  padding: 8rpx 16rpx;
+  color: #d7c49c;
+  font-size: 22rpx;
+  background: rgba(12, 9, 7, 0.64);
+  border: 1rpx solid rgba(220, 170, 78, 0.5);
+  border-radius: 999rpx;
+}
+
+.section-heading {
+  margin-top: 4rpx;
+}
+
+.retry-button {
+  margin-top: 18rpx;
+}
+
+.raid-card {
+  position: relative;
+  min-height: 250rpx;
+  margin-bottom: 22rpx;
+  overflow: hidden;
+  border: 2rpx solid rgba(210, 166, 83, 0.58);
+  border-radius: 14rpx;
+  box-shadow: 0 16rpx 36rpx rgba(0, 0, 0, 0.34);
+}
+
+.raid-art,
+.raid-shade {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.raid-shade {
+  background: linear-gradient(90deg, rgba(10, 8, 6, 0.92), rgba(10, 8, 6, 0.45) 60%, rgba(10, 8, 6, 0.82));
+}
+
+.raid-content {
+  position: relative;
+  z-index: 1;
+  padding: 22rpx;
+}
+
+.raid-name {
+  color: #f2c86f;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.raid-title {
+  margin-top: 18rpx;
+  color: #fff0bd;
+  font-size: 36rpx;
+  font-weight: 800;
+}
+
+.raid-meta {
+  margin-top: 6rpx;
+  color: #d8c39a;
+  font-size: 24rpx;
+}
+
+.raid-progress {
+  margin-top: 18rpx;
+  width: 58%;
+}

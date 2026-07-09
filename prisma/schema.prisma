@@ -1,0 +1,166 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Member {
+  id          String       @id @default(cuid())
+  displayName String
+  wechatName  String?
+  guildName   String?
+  role        String       @default("member")
+  active      Boolean      @default(true)
+  note        String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  characters  Character[]
+  signups     Signup[]
+  attendance  Attendance[]
+  loot        Loot[]
+  luckyScores LuckyScore[]
+  ledEvents   GuildEvent[] @relation("EventLeader")
+
+  @@index([displayName])
+}
+
+model Character {
+  id        String         @id @default(cuid())
+  memberId  String
+  name      String
+  class     String
+  realm     String?
+  spec      String?
+  roleType  String?
+  itemLevel Int?
+  isMain    Boolean        @default(false)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  member    Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  signups   Signup[]
+  attendance Attendance[]
+  loot      Loot[]
+
+  @@unique([name, realm])
+  @@index([memberId])
+}
+
+model GuildEvent {
+  id          String         @id @default(cuid())
+  title       String
+  raidName    String         @default("")
+  status      String         @default("draft")
+  type        String   @default("RAID")
+  description String?
+  startTime   DateTime       @map("startsAt")
+  endsAt      DateTime?
+  location    String?
+  maxPlayers  Int            @default(40)
+  tankNeed    Int            @default(0)
+  healerNeed  Int            @default(0)
+  meleeNeed   Int            @default(0)
+  rangedNeed  Int            @default(0)
+  leaderId    String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  leader      Member?        @relation("EventLeader", fields: [leaderId], references: [id], onDelete: SetNull)
+  signups     Signup[]
+  attendance  Attendance[]
+  loot        Loot[]
+  luckyScores LuckyScore[]
+
+  @@index([startTime])
+  @@index([status])
+  @@index([raidName])
+  @@index([leaderId])
+}
+
+model Signup {
+  id          String       @id @default(cuid())
+  eventId     String
+  memberId    String
+  characterId String?
+  status      String   @default("signed")
+  roleType    String   @default("ranged") @map("role")
+  note        String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  event       GuildEvent   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  member      Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  character   Character?   @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  attendance  Attendance[]
+
+  @@unique([eventId, memberId])
+  @@index([eventId])
+  @@index([memberId])
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  eventId   String
+  memberId  String
+  characterId String?
+  signupId    String?
+  status    String    @default("present")
+  checkedAt DateTime?
+  note      String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  event     GuildEvent       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  member    Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  character Character?        @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  signup    Signup?           @relation(fields: [signupId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, memberId])
+  @@index([eventId])
+  @@index([memberId])
+  @@index([characterId])
+  @@index([signupId])
+}
+
+model Loot {
+  id          String      @id @default(cuid())
+  eventId     String
+  memberId    String?
+  characterId String?
+  itemName    String
+  quality     String      @default("EPIC")
+  isLegendary Boolean     @default(false)
+  note        String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  event       GuildEvent  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  member      Member?     @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  character   Character?  @relation(fields: [characterId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@index([memberId])
+}
+
+model LuckyScore {
+  id        String      @id @default(cuid())
+  memberId  String
+  eventId   String?
+  score     Int
+  reason    String
+  createdAt DateTime    @default(now())
+  member    Member      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  event     GuildEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([memberId])
+  @@index([eventId])
+}
+
+model GuildNotice {
+  id          String    @id @default(cuid())
+  title       String
+  content     String
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([publishedAt])
+}

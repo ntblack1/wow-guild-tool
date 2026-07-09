@@ -1,0 +1,44 @@
+<view class="page home-page">
+  <view class="hero-card guild-hero">
+    <image src="/assets/images/hero-guild-hall.png" mode="aspectFill" />
+    <view class="hero-overlay"></view>
+    <view class="hero-content">
+      <view class="eyebrow">八块腹肌</view>
+      <view class="home-title">活动大厅</view>
+      <view class="home-copy">查看近期副本活动，确认报名与职业缺口。</view>
+      <view class="home-status">后端状态：{{apiStatus}}</view>
+    </view>
+  </view>
+
+  <view class="section row section-heading">
+    <view>
+      <view class="title">近期团队活动</view>
+      <view class="subtitle">准备好角色，准点开团</view>
+    </view>
+    <button class="secondary-button" size="mini" bindtap="loadEvents">刷新</button>
+  </view>
+
+  <view wx:if="{{loading}}" class="empty">正在加载活动...</view>
+  <view wx:elif="{{error}}" class="card">
+    <view class="muted">{{error}}</view>
+    <button class="primary-button retry-button" size="mini" bindtap="loadEvents">重试</button>
+  </view>
+  <view wx:elif="{{events.length === 0}}" class="empty">暂无活动</view>
+
+  <view wx:for="{{events}}" wx:key="id" class="raid-card" bindtap="goDetail" data-id="{{item.id}}">
+    <image class="raid-art" src="{{item.artwork}}" mode="aspectFill" />
+    <view class="raid-shade"></view>
+    <view class="raid-content">
+      <view class="row">
+        <view class="raid-name">{{item.raidName}}</view>
+        <view class="status-badge {{item.statusClass}}">{{item.statusText}}</view>
+      </view>
+      <view class="raid-title">{{item.title}}</view>
+      <view class="raid-meta">开团时间：{{item.startTimeText}}</view>
+      <view class="raid-meta">人数上限：{{item.maxPlayers}}</view>
+      <view class="progress raid-progress">
+        <view class="progress-bar" style="width: {{item.progress}}%;"></view>
+      </view>
+    </view>
+  </view>
+</view>

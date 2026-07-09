@@ -1,0 +1,51 @@
+<view class="page signup-page">
+  <view wx:if="{{loading}}" class="empty">正在召集角色...</view>
+
+  <view wx:else>
+    <view class="card signup-hero">
+      <view class="eyebrow">出战报名</view>
+      <view class="title signup-title">选择你的出战角色</view>
+      <view class="subtitle">当前成员：{{currentMemberId || "-"}}</view>
+      <view class="subtitle">后端地址：{{apiBaseUrl}}</view>
+    </view>
+
+    <view wx:if="{{needsMemberSelection}}" class="card">
+      <view class="empty">请先在“我的”页面选择当前成员，再回来报名。</view>
+      <button class="primary-button" bindtap="goSelectMember">去选择成员</button>
+    </view>
+
+    <view wx:elif="{{loadError}}" class="card error-card">
+      <view class="title">角色加载异常</view>
+      <view class="subtitle">{{loadError}}</view>
+    </view>
+
+    <view wx:elif="{{characters.length === 0}}" class="card">
+      <view class="empty">当前成员还没有角色。请先确认测试数据，或联系团长补充角色。</view>
+    </view>
+
+    <form wx:else bindsubmit="submitSignup">
+      <view class="card form-panel">
+        <view class="field">
+          <view class="label">选择角色</view>
+          <picker range="{{characterOptions}}" value="{{characterIndex}}" bindchange="changeCharacter">
+            <view class="picker">{{selectedCharacterText}}</view>
+          </picker>
+        </view>
+
+        <view class="field">
+          <view class="label">选择职责</view>
+          <picker range="{{roleOptions}}" range-key="label" value="{{roleIndex}}" bindchange="changeRole">
+            <view class="picker">{{selectedRoleText}}</view>
+          </picker>
+        </view>
+
+        <view class="field">
+          <view class="label">备注</view>
+          <textarea class="textarea" name="note" placeholder="例如：可替补、稍晚到、可切副天赋" value="{{note}}" bindinput="changeNote" />
+        </view>
+
+        <button class="primary-button submit-button" form-type="submit" loading="{{submitting}}">确认出战</button>
+      </view>
+    </form>
+  </view>
+</view>

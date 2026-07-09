@@ -1,0 +1,97 @@
+<view class="page detail-page">
+  <view wx:if="{{loading}}" class="empty">正在加载活动详情...</view>
+  <view wx:elif="{{error}}" class="card">
+    <view class="muted">{{error}}</view>
+    <button class="primary-button retry-button" size="mini" bindtap="loadDetail">重试</button>
+  </view>
+
+  <view wx:elif="{{event}}">
+    <view class="hero-card detail-hero">
+      <image src="{{event.artwork}}" mode="aspectFill" />
+      <view class="hero-overlay"></view>
+      <view class="hero-content">
+        <view class="row">
+          <view class="eyebrow">{{event.raidName}}</view>
+          <view class="status-badge {{event.statusClass}}">{{event.statusText}}</view>
+        </view>
+        <view class="detail-title">{{event.title}}</view>
+        <view class="detail-time">{{event.startTimeText}}</view>
+        <view class="progress detail-progress">
+          <view class="progress-bar" style="width: {{progress}}%;"></view>
+        </view>
+        <view class="detail-count">已报名 {{summary.signedCount || 0}} / {{summary.maxPlayers || event.maxPlayers}}</view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="title">团队情报</view>
+      <view class="intel-grid">
+        <view class="intel-item">
+          <view class="subtitle">团长</view>
+          <view>{{event.leaderName}}</view>
+        </view>
+        <view class="intel-item">
+          <view class="subtitle">人数上限</view>
+          <view>{{event.maxPlayers}}</view>
+        </view>
+      </view>
+      <view class="description">{{event.description || "暂无说明"}}</view>
+    </view>
+
+    <view class="card">
+      <view class="row">
+        <view class="title">职业需求</view>
+        <view class="subtitle">缺口优先补齐</view>
+      </view>
+      <view class="role-grid">
+        <view wx:for="{{roleNeeds}}" wx:key="key" class="role-need">
+          <view class="role-chip {{item.className}}">{{item.label}}</view>
+          <view class="need-number">{{item.current}} / {{item.need}}</view>
+          <view class="subtitle">缺口 {{item.gap}}</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="title">报名统计</view>
+      <view class="stats-row">
+        <view class="stat-box">
+          <view class="stat-number">{{summary.signedCount || 0}}</view>
+          <view class="subtitle">已报名</view>
+        </view>
+        <view class="stat-box">
+          <view class="stat-number">{{summary.standbyCount || 0}}</view>
+          <view class="subtitle">候补</view>
+        </view>
+        <view class="stat-box">
+          <view class="stat-number">{{summary.leaveCount || 0}}</view>
+          <view class="subtitle">请假</view>
+        </view>
+        <view class="stat-box">
+          <view class="stat-number">{{summary.cancelledCount || 0}}</view>
+          <view class="subtitle">取消</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="button-row action-row">
+      <button wx:if="{{event.status === 'signup_open'}}" class="primary-button action-button" bindtap="goSignup">我要报名</button>
+      <button class="secondary-button action-button" bindtap="toggleSignups">查看报名名单</button>
+    </view>
+
+    <view wx:if="{{showSignups}}" class="section">
+      <view wx:if="{{signups.length === 0}}" class="empty">暂无报名</view>
+      <view wx:for="{{signups}}" wx:key="id" class="card signup-card">
+        <view class="row">
+          <view>
+            <view class="signup-name">{{item.member.displayName}}</view>
+            <view class="subtitle">{{item.character.name}}</view>
+          </view>
+          <view class="role-chip {{item.roleClassName}}">{{item.roleText}}</view>
+        </view>
+        <view class="muted">状态：{{item.statusText}}</view>
+        <view wx:if="{{item.note}}" class="note">备注：{{item.note}}</view>
+      </view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,114 @@
+<view class="page leader-page">
+  <view class="card leader-hero">
+    <view class="eyebrow">团长控制台</view>
+    <view class="title hero-title">活动与签到管理</view>
+    <view class="subtitle">当前团长 ID：{{leaderId}}</view>
+    <view class="subtitle">后端地址：{{apiBaseUrl}}</view>
+  </view>
+
+  <form bindsubmit="createNewEvent">
+    <view class="card">
+      <view class="title">创建活动</view>
+      <view class="field">
+        <view class="label">标题</view>
+        <input class="input" name="title" value="{{form.title}}" bindinput="changeField" data-field="title" />
+      </view>
+      <view class="field">
+        <view class="label">副本</view>
+        <input class="input" name="raidName" value="{{form.raidName}}" bindinput="changeField" data-field="raidName" />
+      </view>
+      <view class="field">
+        <view class="label">开始时间 ISO</view>
+        <input class="input" name="startTime" value="{{form.startTime}}" bindinput="changeField" data-field="startTime" />
+      </view>
+      <view class="field">
+        <view class="label">人数上限</view>
+        <input class="input" type="number" name="maxPlayers" value="{{form.maxPlayers}}" bindinput="changeField" data-field="maxPlayers" />
+      </view>
+      <view class="need-input-grid">
+        <input class="input" type="number" placeholder="坦克" value="{{form.tankNeed}}" bindinput="changeField" data-field="tankNeed" />
+        <input class="input" type="number" placeholder="治疗" value="{{form.healerNeed}}" bindinput="changeField" data-field="healerNeed" />
+        <input class="input" type="number" placeholder="近战" value="{{form.meleeNeed}}" bindinput="changeField" data-field="meleeNeed" />
+        <input class="input" type="number" placeholder="远程" value="{{form.rangedNeed}}" bindinput="changeField" data-field="rangedNeed" />
+      </view>
+      <view class="field">
+        <view class="label">说明</view>
+        <textarea class="textarea" value="{{form.description}}" bindinput="changeField" data-field="description" />
+      </view>
+      <button class="primary-button" form-type="submit" loading="{{creating}}">创建活动</button>
+    </view>
+  </form>
+
+  <view class="section">
+    <view class="row section-title-row">
+      <view>
+        <view class="title">活动列表</view>
+        <view class="subtitle">开放报名、锁定与签到生成</view>
+      </view>
+      <button class="secondary-button" size="mini" bindtap="loadEvents">刷新</button>
+    </view>
+    <view wx:if="{{loadError}}" class="card error-card">
+      <view class="title">后端连接异常</view>
+      <view class="subtitle">{{loadError}}</view>
+    </view>
+    <view wx:if="{{events.length === 0}}" class="empty">暂无活动</view>
+    <view wx:for="{{events}}" wx:key="id" class="card leader-event-card">
+      <view class="row">
+        <view>
+          <view class="title">{{item.title}}</view>
+          <view class="subtitle">{{item.raidName}} / {{item.startTimeText}}</view>
+        </view>
+        <view class="status-badge {{item.statusClass}}">{{item.statusText}}</view>
+      </view>
+      <view class="button-row event-actions">
+        <button class="secondary-button" size="mini" data-id="{{item.id}}" bindtap="openSignup">开放报名</button>
+        <button class="secondary-button" size="mini" data-id="{{item.id}}" bindtap="lockEvent">锁定报名</button>
+        <button class="secondary-button" size="mini" data-id="{{item.id}}" bindtap="showSignups">查看报名</button>
+        <button class="secondary-button" size="mini" data-id="{{item.id}}" bindtap="generateAttendance">生成签到</button>
+        <button class="secondary-button" size="mini" data-id="{{item.id}}" bindtap="showAttendance">查看签到</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{selectedEventTitle}}" class="section">
+    <view class="title">{{selectedEventTitle}} 报名名单</view>
+    <view wx:if="{{signups.length === 0}}" class="empty">暂无报名</view>
+    <view wx:for="{{signups}}" wx:key="id" class="card compact-card">
+      <view>{{item.member.displayName}} / {{item.character.name}}</view>
+      <view class="subtitle">{{item.roleText}} / {{item.statusText}}</view>
+      <view wx:if="{{item.note}}" class="muted">备注：{{item.note}}</view>
+    </view>
+  </view>
+
+  <view wx:if="{{attendanceSummary}}" class="section">
+    <view class="title">出勤统计</view>
+    <view class="summary-grid">
+      <view class="summary-item">出勤 {{attendanceSummary.presentCount}}</view>
+      <view class="summary-item">迟到 {{attendanceSummary.lateCount}}</view>
+      <view class="summary-item">缺席 {{attendanceSummary.absentCount}}</view>
+      <view class="summary-item">候补 {{attendanceSummary.standbyCount}}</view>
+    </view>
+  </view>
+
+  <view wx:if="{{attendance.length > 0}}" class="section">
+    <view class="title">签到名单</view>
+    <view wx:for="{{attendance}}" wx:key="id" class="card compact-card">
+      <view>{{item.member.displayName}} / {{item.character.name}}</view>
+      <view class="subtitle">当前：{{item.statusText}}</view>
+      <view class="button-row event-actions">
+        <button
+          class="secondary-button"
+          wx:for="{{attendanceStatusOptions}}"
+          wx:for-item="statusItem"
+          wx:key="value"
+          size="mini"
+          data-id="{{item.id}}"
+          data-status="{{statusItem.value}}"
+          bindtap="changeAttendanceStatus"
+        >
+          {{statusItem.label}}
+        </button>
+      </view>
+    </view>
+  </view>
+</view>
