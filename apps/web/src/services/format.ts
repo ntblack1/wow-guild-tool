@@ -23,6 +23,29 @@ export function groupSignupsByRole(signups: Signup[]) {
   return grouped;
 }
 
+export function eventRoleComposition(signups: Signup[], capacity: number) {
+  const activeSignups = signups.filter((signup) => signup.status !== "请假");
+  const grouped = groupSignupsByRole(activeSignups);
+  const tankTarget = capacity <= 5 ? 1 : 2;
+  const healerTarget = Math.max(1, Math.round(capacity * 0.2));
+  const targets: Record<CombatRole, number> = {
+    T: tankTarget,
+    N: healerTarget,
+    DPS: Math.max(1, capacity - tankTarget - healerTarget),
+  };
+
+  return {
+    activeCount: activeSignups.length,
+    counts: {
+      T: grouped.T.length,
+      N: grouped.N.length,
+      DPS: grouped.DPS.length,
+    },
+    targets,
+    percent: Math.min(100, Math.round((activeSignups.length / Math.max(1, capacity)) * 100)),
+  };
+}
+
 export function statusLabel(value: string) {
   const labels: Record<string, string> = {
     draft: "草稿",
@@ -34,13 +57,13 @@ export function statusLabel(value: string) {
   return labels[value] ?? value;
 }
 
-export function eventRoleNeeds(signups: Signup[]) {
-  const grouped = groupSignupsByRole(signups);
+export function eventRoleNeeds(signups: Signup[], capacity = 4) {
+  const { counts, targets } = eventRoleComposition(signups, capacity);
   const needs: string[] = [];
 
-  if (grouped.T.length < 1) needs.push("T");
-  if (grouped.N.length < 1) needs.push("治疗");
-  if (grouped.DPS.length < 2) needs.push("DPS");
+  if (counts.T < targets.T) needs.push("T");
+  if (counts.N < targets.N) needs.push("治疗");
+  if (counts.DPS < targets.DPS) needs.push("DPS");
 
   return needs.length ? `缺${needs.join(" / ")}` : "阵容已成型";
 }

@@ -198,6 +198,7 @@ drop policy if exists "guild users create events" on public.events;
 drop policy if exists "admins update events" on public.events;
 drop policy if exists "guild users update events" on public.events;
 drop policy if exists "managers create events" on public.events;
+drop policy if exists "members create events" on public.events;
 drop policy if exists "managers update events" on public.events;
 drop policy if exists "signups readable" on public.signups;
 drop policy if exists "users create own signups" on public.signups;
@@ -248,9 +249,9 @@ for delete to authenticated using (user_id = auth.uid());
 create policy "events readable" on public.events
 for select to anon, authenticated using (true);
 
-create policy "managers create events" on public.events
+create policy "members create events" on public.events
 for insert to authenticated
-with check (public.is_guild_manager() and created_by = auth.uid());
+with check (created_by = auth.uid());
 
 create policy "managers update events" on public.events
 for update to authenticated

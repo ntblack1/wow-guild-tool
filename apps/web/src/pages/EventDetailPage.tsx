@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Check, HeartPulse, Shield, Swords } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
@@ -10,7 +11,7 @@ import { isSupabaseConfigured } from "../lib/supabase";
 import { getCurrentUser } from "../services/auth";
 import { listCharacters } from "../services/characters";
 import { getEvent } from "../services/events";
-import { describeSignupConflict, eventRoleNeeds, formatDateTime, groupSignupsByRole, statusLabel } from "../services/format";
+import { describeSignupConflict, eventRoleComposition, eventRoleNeeds, formatDateTime, groupSignupsByRole, statusLabel } from "../services/format";
 import { getProfile } from "../services/profiles";
 import { createSignup, deleteSignup, listEventSignups, updateSignupStatus } from "../services/signups";
 import { signupStatuses, type GuildCharacter, type GuildEvent, type Profile, type Signup, type SignupStatus } from "../types";
@@ -19,6 +20,12 @@ const roleTitles = {
   T: "坦克",
   N: "治疗",
   DPS: "输出",
+} as const;
+
+const roleIcons = {
+  T: Shield,
+  N: HeartPulse,
+  DPS: Swords,
 } as const;
 
 export function EventDetailPage() {
@@ -35,7 +42,12 @@ export function EventDetailPage() {
   const [error, setError] = useState("");
   const canManage = profile?.role === "admin" || profile?.role === "leader";
   const grouped = useMemo(() => groupSignupsByRole(signups), [signups]);
+  const composition = useMemo(
+    () => eventRoleComposition(signups, guildEvent?.capacity ?? 1),
+    [guildEvent?.capacity, signups],
+  );
   const mySignup = signups.find((signup) => signup.user_id === userId) ?? null;
+  const selectedCharacter = characters.find((character) => character.id === characterId) ?? null;
 
   async function refresh() {
     setGuildEvent(await getEvent(eventId));
@@ -127,9 +139,23 @@ export function EventDetailPage() {
             <StatusBadge>{statusLabel(guildEvent.status)}</StatusBadge>
           </div>
           <p className="mt-3 text-sm text-guild-muted">
-            {formatDateTime(guildEvent.starts_at)} · 上限 {guildEvent.capacity} 人 · {signups.length} 人已报名 · {eventRoleNeeds(signups)}
+            {formatDateTime(guildEvent.starts_at)} · 上限 {guildEvent.capacity} 人 · {signups.length} 人已报名 · {eventRoleNeeds(signups, guildEvent.capacity)}
           </p>
           {guildEvent.description ? <p className="mt-3 whitespace-pre-wrap text-sm leading-6">{guildEvent.description}</p> : null}
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-guild-line/70">
+            <div className="h-full rounded-full bg-guild-mint" style={{ width: `${composition.percent}%` }} />
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {(["T", "N", "DPS"] as const).map((role) => {
+              const Icon = roleIcons[role];
+              return (
+                <div className="rounded-md bg-white/75 px-2 py-2 text-center" key={role}>
+                  <Icon className="mx-auto h-4 w-4 text-guild-gold" />
+                  <p className="mt-1 text-xs font-black">{roleTitles[role]} {composition.counts[role]}/{composition.targets[role]}</p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </article>
 
@@ -163,19 +189,39 @@ export function EventDetailPage() {
           </div>
         ) : (
           <form className="grid gap-3" onSubmit={handleSignup}>
-            <Field label="角色">
-              <select className="guild-input" value={characterId} onChange={(e) => setCharacterId(e.target.value)}>
-                {characters.map((character) => (
-                  <option key={character.id} value={character.id}>
-                    {character.name} / {character.class_name} / {character.spec} / {character.combat_role}
-                  </option>
-                ))}
-              </select>
+            <div>
+              <p className="mb-2 text-sm font-bold text-guild-ink">选择出战角色</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {characters.map((character) => {
+                  const Icon = roleIcons[character.combat_role];
+                  const selected = character.id === characterId;
+                  return (
+                    <button
+                      aria-pressed={selected}
+                      className={`flex min-h-16 items-center gap-3 rounded-md border p-3 text-left transition ${selected ? "border-guild-gold bg-guild-panelSoft" : "border-guild-line bg-white/70"}`}
+                      key={character.id}
+                      onClick={() => setCharacterId(character.id)}
+                      type="button"
+                    >
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white shadow-sm">
+                        <Icon className="h-5 w-5 text-guild-gold" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-black text-guild-ink">{character.name}</span>
+                        <span className="block truncate text-xs text-guild-muted">{character.class_name} · {character.spec} · {roleTitles[character.combat_role]}</span>
+                      </span>
+                      {selected ? <Check className="h-5 w-5 shrink-0 text-emerald-600" /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <Field label="备注（选填）">
+              <textarea className="guild-input" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="例如：可能迟到 10 分钟、可以切治疗" />
             </Field>
-            <Field label="备注">
-              <textarea className="guild-input" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="迟到、可转天赋、只打前几等都可以写这里" />
-            </Field>
-            <button className="guild-button" disabled={submitting || !characterId}>报名</button>
+            <button className="guild-button" disabled={submitting || !characterId}>
+              {submitting ? "报名中" : selectedCharacter ? `用 ${selectedCharacter.name} 报名` : "确认报名"}
+            </button>
           </form>
         )}
       </section>
@@ -183,7 +229,7 @@ export function EventDetailPage() {
       <div className="grid gap-3 md:grid-cols-3">
         {(["T", "N", "DPS"] as const).map((role) => (
           <section className="guild-card" key={role}>
-            <SectionTitle title={roleTitles[role]} />
+            <SectionTitle title={`${roleTitles[role]} ${composition.counts[role]}/${composition.targets[role]}`} />
             <div className="mt-3 space-y-2">
               {grouped[role].length ? grouped[role].map((signup) => (
                 <div className="rounded-md bg-white/70 p-3" key={signup.id}>

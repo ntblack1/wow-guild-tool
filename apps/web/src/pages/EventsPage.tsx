@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { EventCard } from "../components/EventCard";
@@ -8,10 +9,9 @@ import { SectionTitle } from "../components/SectionTitle";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { getCurrentUser } from "../services/auth";
 import { createEvent, listEvents } from "../services/events";
-import { eventRoleNeeds, statusLabel } from "../services/format";
-import { getProfile } from "../services/profiles";
+import { eventRoleNeeds } from "../services/format";
 import { listEventSignups } from "../services/signups";
-import { eventStatuses, type EventInput, type GuildEvent, type Profile, type Signup } from "../types";
+import type { EventInput, GuildEvent, Signup } from "../types";
 
 const filters = ["全部", "报名中", "即将开始", "已结束"] as const;
 
@@ -27,13 +27,11 @@ const initialInput: EventInput = {
 export function EventsPage() {
   const [events, setEvents] = useState<GuildEvent[]>([]);
   const [signupMap, setSignupMap] = useState<Record<string, Signup[]>>({});
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [userId, setUserId] = useState("");
   const [input, setInput] = useState<EventInput>(initialInput);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<(typeof filters)[number]>("全部");
-  const canManage = profile?.role === "admin" || profile?.role === "leader";
 
   const filteredEvents = useMemo(() => {
     return events.filter((guildEvent) => {
@@ -58,7 +56,6 @@ export function EventsPage() {
 
     const user = await getCurrentUser();
     setUserId(user?.id ?? "");
-    setProfile(user ? await getProfile(user.id) : null);
   }
 
   useEffect(() => {
@@ -91,9 +88,9 @@ export function EventsPage() {
         <h1 className="text-3xl font-black text-guild-ink">活动报名</h1>
       </div>
       {error ? <ErrorState message={error} /> : null}
-      {canManage ? (
+      {userId ? (
         <form className="guild-card grid gap-3" onSubmit={handleSubmit}>
-          <h2 className="font-black text-guild-ink">创建活动</h2>
+          <h2 className="font-black text-guild-ink">发起活动</h2>
           <Field label="活动标题">
             <input className="guild-input" value={input.title} onChange={(e) => setInput({ ...input, title: e.target.value })} required />
           </Field>
@@ -108,17 +105,17 @@ export function EventsPage() {
               <input className="guild-input" type="number" min={1} value={input.capacity} onChange={(e) => setInput({ ...input, capacity: Number(e.target.value) })} required />
             </Field>
           </div>
-          <Field label="状态">
-            <select className="guild-input" value={input.status} onChange={(e) => setInput({ ...input, status: e.target.value as EventInput["status"] })}>
-              {eventStatuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
-            </select>
-          </Field>
           <Field label="活动说明">
             <textarea className="guild-input" rows={3} value={input.description ?? ""} onChange={(e) => setInput({ ...input, description: e.target.value })} />
           </Field>
           <button className="guild-button">发布活动</button>
         </form>
-      ) : null}
+      ) : (
+        <div className="guild-card grid gap-3">
+          <ErrorState message="登录后即可发起活动。" />
+          <Link className="guild-button text-center" to="/auth">去登录</Link>
+        </div>
+      )}
       <section className="space-y-3">
         <SectionTitle eyebrow="Events" title="活动列表" />
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -142,11 +139,12 @@ export function EventsPage() {
               <EventCard
                 event={guildEvent}
                 key={guildEvent.id}
-                roleNeed={eventRoleNeeds(signups)}
+                roleNeed={eventRoleNeeds(signups, guildEvent.capacity)}
+                signups={signups}
                 signupCount={signups.length}
               />
             );
-          }) : <EmptyState title="暂无活动" description="团长创建活动后会显示在这里。" />}
+          }) : <EmptyState title="暂无活动" description="登录后可以发起第一个工会活动。" />}
         </div>
       </section>
     </section>

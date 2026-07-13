@@ -66,6 +66,13 @@ export async function getCurrentUser() {
   return data.session ? sessionUser(data.session.user) : null;
 }
 
+export function subscribeToAuthChanges(callback: (user: GuildSessionUser | null) => void) {
+  const { data } = requireSupabase().auth.onAuthStateChange((_event, session) => {
+    callback(session ? sessionUser(session.user) : null);
+  });
+  return () => data.subscription.unsubscribe();
+}
+
 export function isGuildPassphraseCorrect(answer: string) {
   return answer.trim() === guildPassphrase;
 }

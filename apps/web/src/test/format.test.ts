@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   describeSignupConflict,
+  eventRoleComposition,
   eventRoleNeeds,
   groupSignupsByRole,
   sortPostsForForum,
@@ -41,6 +42,21 @@ describe("format helpers", () => {
 
     expect(eventRoleNeeds(signups)).toBe("缺治疗");
     expect(eventRoleNeeds([...signups, { id: "4", combat_role: "N" } as Signup])).toBe("阵容已成型");
+  });
+
+  it("calculates role targets and ignores leave signups in composition", () => {
+    const signups = [
+      { id: "1", combat_role: "T", status: "已报名" },
+      { id: "2", combat_role: "N", status: "请假" },
+      { id: "3", combat_role: "DPS", status: "已确认" },
+    ] as Signup[];
+
+    expect(eventRoleComposition(signups, 10)).toEqual({
+      activeCount: 2,
+      counts: { T: 1, N: 0, DPS: 1 },
+      targets: { T: 2, N: 2, DPS: 6 },
+      percent: 20,
+    });
   });
 
   it("sorts forum posts with pinned posts first and hot posts by comment count", () => {

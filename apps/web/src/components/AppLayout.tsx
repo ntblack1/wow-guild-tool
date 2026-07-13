@@ -1,5 +1,8 @@
 import { CalendarDays, Home, MessageCircle, ScrollText, UserRound } from "lucide-react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { isSupabaseConfigured } from "../lib/supabase";
+import { getCurrentUser, subscribeToAuthChanges, type GuildSessionUser } from "../services/auth";
 
 const navItems = [
   { to: "/", label: "大厅", icon: Home },
@@ -10,6 +13,14 @@ const navItems = [
 ];
 
 export function AppLayout() {
+  const [currentUser, setCurrentUser] = useState<GuildSessionUser | null>(null);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    getCurrentUser().then(setCurrentUser).catch(() => setCurrentUser(null));
+    return subscribeToAuthChanges(setCurrentUser);
+  }, []);
+
   return (
     <div className="min-h-screen pb-24 text-guild-ink md:pb-0">
       <header className="sticky top-0 z-10 border-b border-guild-line/70 bg-guild-bg/85 backdrop-blur-xl">
@@ -17,8 +28,12 @@ export function AppLayout() {
           <NavLink to="/" className="text-lg font-black text-guild-gold">
             八块腹肌大厅
           </NavLink>
-          <NavLink to="/auth" className="guild-button-secondary min-h-9 px-3 py-1 text-xs">
-            登录
+          <NavLink
+            to="/auth"
+            className="guild-button-secondary min-h-9 max-w-40 truncate px-3 py-1 text-xs"
+            title={currentUser?.displayName ?? "登录"}
+          >
+            {currentUser?.displayName ?? "登录"}
           </NavLink>
         </div>
         <nav className="mx-auto hidden max-w-5xl grid-cols-5 gap-1 px-2 pb-2 text-center text-sm md:grid">

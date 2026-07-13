@@ -17,6 +17,11 @@ test("Supabase schema never grants anonymous writes", () => {
   assert.match(schema, /public\.is_guild_manager\(\)/i);
 });
 
+test("signed-in members can create events while management stays restricted", () => {
+  assert.match(schema, /create policy "members create events"[\s\S]*created_by = auth\.uid\(\)/i);
+  assert.match(schema, /create policy "managers update events"[\s\S]*public\.is_guild_manager\(\)/i);
+});
+
 test("every created RLS policy is dropped first so the schema can be rerun", () => {
   const createdPolicies = [...schema.matchAll(/create policy "([^"]+)"/g)].map((match) => match[1]);
   for (const policy of createdPolicies) {

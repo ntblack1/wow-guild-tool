@@ -1,16 +1,27 @@
-import { CalendarClock, Users } from "lucide-react";
+import { CalendarClock, HeartPulse, Shield, Swords, Users } from "lucide-react";
 import { Link } from "react-router-dom";
-import { formatDateTime, statusLabel } from "../services/format";
-import type { GuildEvent } from "../types";
+import { eventRoleComposition, eventRoleNeeds, formatDateTime, statusLabel } from "../services/format";
+import type { GuildEvent, Signup } from "../types";
 import { StatusBadge } from "./StatusBadge";
 
 type EventCardProps = {
   event: GuildEvent;
   signupCount?: number;
   roleNeed?: string;
+  signups?: Signup[];
 };
 
-export function EventCard({ event, signupCount = 0, roleNeed = "缺口待确认" }: EventCardProps) {
+const roleItems = [
+  { key: "T", label: "T", icon: Shield, color: "text-sky-600" },
+  { key: "N", label: "治疗", icon: HeartPulse, color: "text-emerald-600" },
+  { key: "DPS", label: "DPS", icon: Swords, color: "text-rose-500" },
+] as const;
+
+export function EventCard({ event, signupCount = 0, roleNeed = "缺口待确认", signups }: EventCardProps) {
+  const composition = eventRoleComposition(signups ?? [], event.capacity);
+  const count = signups ? signups.length : signupCount;
+  const need = signups ? eventRoleNeeds(signups, event.capacity) : roleNeed;
+
   return (
     <Link className="guild-card block" to={`/events/${event.id}`}>
       <div className="flex items-start justify-between gap-3">
@@ -27,12 +38,23 @@ export function EventCard({ event, signupCount = 0, roleNeed = "缺口待确认"
         </span>
         <span className="inline-flex items-center gap-2">
           <Users className="h-4 w-4 text-guild-mint" />
-          {signupCount}/{event.capacity} 人 · {roleNeed}
+          {count}/{event.capacity} 人 · {need}
         </span>
       </div>
-      <span className="mt-4 inline-flex rounded-full bg-guild-gold px-4 py-2 text-sm font-bold text-white shadow-soft">
-        查看报名
-      </span>
+      {signups ? (
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {roleItems.map(({ key, label, icon: Icon, color }) => (
+            <span className="flex min-w-0 items-center justify-center gap-1 rounded-md bg-white/75 px-2 py-2 text-xs font-bold" key={key}>
+              <Icon className={`h-4 w-4 ${color}`} />
+              {label} {composition.counts[key]}/{composition.targets[key]}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-guild-line/70">
+        <div className="h-full rounded-full bg-guild-mint" style={{ width: `${signups ? composition.percent : Math.min(100, (count / event.capacity) * 100)}%` }} />
+      </div>
+      <span className="mt-4 inline-flex text-sm font-black text-guild-gold">立即查看并报名 →</span>
     </Link>
   );
 }
