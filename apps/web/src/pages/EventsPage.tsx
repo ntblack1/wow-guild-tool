@@ -14,21 +14,36 @@ import { listEventSignups } from "../services/signups";
 import type { EventInput, GuildEvent, Signup } from "../types";
 
 const filters = ["全部", "报名中", "即将开始", "已结束"] as const;
+const raidPresets = ["TOC+ZUG", "NAXX加双龙", "风暴毒蛇摸奖"] as const;
+const customRaidValue = "自定义";
 
-const initialInput: EventInput = {
-  title: "",
-  raid_name: "",
-  starts_at: "",
-  capacity: 25,
-  description: "",
-  status: "open",
-};
+function defaultStartTime() {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  date.setHours(20, 0, 0, 0);
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function initialInput(): EventInput {
+  return {
+    title: raidPresets[0],
+    raid_name: raidPresets[0],
+    starts_at: defaultStartTime(),
+    capacity: 25,
+    description: "",
+    status: "open",
+  };
+}
 
 export function EventsPage() {
   const [events, setEvents] = useState<GuildEvent[]>([]);
   const [signupMap, setSignupMap] = useState<Record<string, Signup[]>>({});
   const [userId, setUserId] = useState("");
   const [input, setInput] = useState<EventInput>(initialInput);
+  const [raidChoice, setRaidChoice] = useState<string>(raidPresets[0]);
+  const [creating, setCreating] = useState(false);
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<(typeof filters)[number]>("全部");
@@ -67,14 +82,32 @@ export function EventsPage() {
 
   async function handleSubmit(eventSubmit: FormEvent) {
     eventSubmit.preventDefault();
-    if (!userId) return;
+    if (!userId || creating || !input.raid_name.trim()) return;
+    setCreating(true);
     setError("");
+    setMessage("");
     try {
-      await createEvent(userId, input);
-      setInput(initialInput);
+      await createEvent(userId, {
+        ...input,
+        title: input.raid_name.trim(),
+        raid_name: input.raid_name.trim(),
+        status: "open",
+      });
+      setInput(initialInput());
+      setRaidChoice(raidPresets[0]);
+      setMessage("活动已发布，可以开始报名了。");
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "创建活动失败");
+      const detail = caught instanceof Error
+        ? caught.message
+        : typeof caught === "object" && caught !== null && "message" in caught
+          ? String(caught.message)
+          : "";
+      setError(/row-level security|permission|42501/i.test(detail)
+        ? "活动创建权限还没有更新，请在 Supabase 执行最新权限 SQL。"
+        : `创建活动失败${detail ? `：${detail}` : "，请刷新页面后再试。"}`);
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -88,15 +121,37 @@ export function EventsPage() {
         <h1 className="text-3xl font-black text-guild-ink">活动报名</h1>
       </div>
       {error ? <ErrorState message={error} /> : null}
+      {message ? <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">{message}</p> : null}
       {userId ? (
         <form className="guild-card grid gap-3" onSubmit={handleSubmit}>
           <h2 className="font-black text-guild-ink">发起活动</h2>
-          <Field label="活动标题">
-            <input className="guild-input" value={input.title} onChange={(e) => setInput({ ...input, title: e.target.value })} required />
+          <Field label="副本/活动">
+            <select
+              className="guild-input"
+              value={raidChoice}
+              onChange={(event) => {
+                const value = event.target.value;
+                setRaidChoice(value);
+                if (value !== customRaidValue) setInput({ ...input, title: value, raid_name: value });
+                else setInput({ ...input, title: "", raid_name: "" });
+              }}
+            >
+              {raidPresets.map((raid) => <option key={raid}>{raid}</option>)}
+              <option>{customRaidValue}</option>
+            </select>
           </Field>
-          <Field label="副本名称">
-            <input className="guild-input" value={input.raid_name} onChange={(e) => setInput({ ...input, raid_name: e.target.value })} required />
-          </Field>
+          {raidChoice === customRaidValue ? (
+            <Field label="自定义名称">
+              <input
+                className="guild-input"
+                maxLength={40}
+                placeholder="输入副本或活动名称"
+                value={input.raid_name}
+                onChange={(event) => setInput({ ...input, title: event.target.value, raid_name: event.target.value })}
+                required
+              />
+            </Field>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="开团时间">
               <input className="guild-input" type="datetime-local" value={input.starts_at} onChange={(e) => setInput({ ...input, starts_at: e.target.value })} required />
@@ -105,10 +160,20 @@ export function EventsPage() {
               <input className="guild-input" type="number" min={1} value={input.capacity} onChange={(e) => setInput({ ...input, capacity: Number(e.target.value) })} required />
             </Field>
           </div>
-          <Field label="活动说明">
-            <textarea className="guild-input" rows={3} value={input.description ?? ""} onChange={(e) => setInput({ ...input, description: e.target.value })} />
-          </Field>
-          <button className="guild-button">发布活动</button>
+          <details className="rounded-md border border-guild-line bg-white/60 p-3">
+            <summary className="cursor-pointer text-sm font-bold text-guild-muted">补充说明（选填）</summary>
+            <textarea
+              className="guild-input mt-3"
+              maxLength={300}
+              placeholder="集合地点、特殊要求等"
+              rows={2}
+              value={input.description ?? ""}
+              onChange={(e) => setInput({ ...input, description: e.target.value })}
+            />
+          </details>
+          <button className="guild-button" disabled={creating || !input.raid_name.trim()}>
+            {creating ? "发布中" : `发布 ${input.raid_name || "活动"}`}
+          </button>
         </form>
       ) : (
         <div className="guild-card grid gap-3">
