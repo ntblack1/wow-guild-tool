@@ -178,7 +178,7 @@ export function EventDetailPage() {
           <div className="mt-4 rounded-md border border-emerald-200 bg-white/80 p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
-                <CharacterAvatar avatarUrl={mySignup.character?.avatar_url} name={mySignup.character?.name ?? "我"} />
+                <CharacterAvatar avatarUrl={mySignup.character?.avatar_url} name={mySignup.character?.name ?? "我"} positionX={mySignup.character?.avatar_position_x} positionY={mySignup.character?.avatar_position_y} />
                 <div>
                 <p className="font-bold text-guild-ink">{mySignup.character?.name ?? "我的角色"}</p>
                 <p className="mt-1 text-sm text-guild-muted">
@@ -209,7 +209,7 @@ export function EventDetailPage() {
                       onClick={() => setCharacterId(character.id)}
                       type="button"
                     >
-                      <CharacterAvatar avatarUrl={character.avatar_url} className="h-10 w-10" name={character.name} />
+                      <CharacterAvatar avatarUrl={character.avatar_url} className="h-10 w-10" name={character.name} positionX={character.avatar_position_x} positionY={character.avatar_position_y} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-black text-guild-ink">{character.name}</span>
                         <span className="flex items-center gap-1 truncate text-xs text-guild-muted"><Icon className="h-3.5 w-3.5 text-guild-gold" />{character.class_name} · {character.spec} · {roleTitles[character.combat_role]}</span>
@@ -237,7 +237,7 @@ export function EventDetailPage() {
                 <div className="rounded-md bg-white/70 p-3" key={signup.id}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
-                      <CharacterAvatar avatarUrl={signup.character?.avatar_url} className="h-8 w-8" name={signup.character?.name ?? "未"} />
+                      <CharacterAvatar avatarUrl={signup.character?.avatar_url} className="h-8 w-8" name={signup.character?.name ?? "未"} positionX={signup.character?.avatar_position_x} positionY={signup.character?.avatar_position_y} />
                       <span className="truncate font-semibold text-guild-ink">{signup.character?.name ?? "未知角色"}</span>
                     </div>
                     <StatusBadge>{signup.status}</StatusBadge>

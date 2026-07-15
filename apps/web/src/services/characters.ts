@@ -1,18 +1,16 @@
 import { requireSupabase } from "../lib/supabase";
 import type { CharacterInput, GuildCharacter } from "../types";
+import { compressImageForUpload } from "./images";
 
 const avatarBucket = "character-avatars";
 
 export async function uploadCharacterAvatar(userId: string, characterId: string, file: File) {
-  if (!file.type.startsWith("image/")) throw new Error("请选择图片文件。");
-  if (file.size > 2 * 1024 * 1024) throw new Error("头像图片不能超过 2MB。");
-
-  const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-  const path = `${userId}/${characterId}.${extension}`;
+  const optimizedFile = await compressImageForUpload(file, 900);
+  const path = `${userId}/${characterId}.webp`;
   const client = requireSupabase();
-  const { error } = await client.storage.from(avatarBucket).upload(path, file, {
+  const { error } = await client.storage.from(avatarBucket).upload(path, optimizedFile, {
     cacheControl: "3600",
-    contentType: file.type,
+    contentType: optimizedFile.type,
     upsert: true,
   });
 

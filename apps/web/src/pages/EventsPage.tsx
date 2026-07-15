@@ -10,7 +10,7 @@ import { isSupabaseConfigured } from "../lib/supabase";
 import { getCurrentUser } from "../services/auth";
 import { createEvent, listEvents } from "../services/events";
 import { eventRoleNeeds, isEventToday } from "../services/format";
-import { listEventSignups } from "../services/signups";
+import { listSignupsForEvents, signupsByEvent } from "../services/signups";
 import type { EventInput, GuildEvent, Signup } from "../types";
 
 const filters = ["全部", "报名中", "即将开始", "已结束"] as const;
@@ -65,10 +65,8 @@ export function EventsPage() {
     const eventRows = await listEvents();
     setEvents(eventRows);
 
-    const signupEntries = await Promise.all(
-      eventRows.map(async (guildEvent) => [guildEvent.id, await listEventSignups(guildEvent.id)] as const),
-    );
-    setSignupMap(Object.fromEntries(signupEntries));
+    const eventIds = eventRows.map((guildEvent) => guildEvent.id);
+    setSignupMap(signupsByEvent(eventIds, await listSignupsForEvents(eventIds)));
 
     const user = await getCurrentUser();
     setUserId(user?.id ?? "");

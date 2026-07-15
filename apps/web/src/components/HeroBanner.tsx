@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Sparkles, Swords } from "lucide-react";
-import heroImage from "../assets/guild-hero.png";
+import heroImage from "../assets/guild-hero.jpg";
 
 export function HeroBanner() {
   return (
@@ -33,6 +33,8 @@ export function HeroBanner() {
             className="absolute inset-0 h-full w-full object-cover object-center"
             src={heroImage}
             alt="原创轻奇幻工会接待官"
+            decoding="async"
+            fetchPriority="high"
           />
         </div>
       </div>

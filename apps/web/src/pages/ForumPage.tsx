@@ -40,7 +40,7 @@ export function ForumPage() {
   }, [categoryFilter, posts, sortMode]);
 
   async function refresh() {
-    setPosts(await listPosts(50));
+    setPosts(await listPosts(20));
     const user = await getCurrentUser();
     setUserId(user?.id ?? "");
     setProfile(user ? await getProfile(user.id) : null);

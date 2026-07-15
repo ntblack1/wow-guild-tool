@@ -20,6 +20,22 @@ body {
     linear-gradient(180deg, #fff7ef 0%, #fffaf5 46%, #fff0d6 100%);
 }
 
+@keyframes member-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-50% - 0.375rem)); }
+}
+
+.member-scroll-track {
+  animation: member-scroll 36s linear infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .member-scroll-track {
+    animation: none;
+  }
+}
+
 button,
 input,
 select,

@@ -1,23 +1,27 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { EventCard } from "../components/EventCard";
-import { GuildMemberShowcase } from "../components/GuildMemberShowcase";
+import { DeferredSection } from "../components/DeferredSection";
 import { HeroBanner } from "../components/HeroBanner";
 import { LoadingState } from "../components/LoadingState";
 import { NoticeCard } from "../components/NoticeCard";
 import { RankCard } from "../components/RankCard";
 import { SectionTitle } from "../components/SectionTitle";
 import { isSupabaseConfigured } from "../lib/supabase";
-import { listEvents } from "../services/events";
+import { listHomepageEvents } from "../services/events";
 import { isEventToday, nextEvent } from "../services/format";
 import { listPosts } from "../services/posts";
-import type { GuildEvent, Post } from "../types";
+import { listSignupsForEvents, signupsByEvent } from "../services/signups";
+import type { GuildEvent, Post, Signup } from "../types";
+
+const GuildMemberShowcase = lazy(() => import("../components/GuildMemberShowcase").then((module) => ({ default: module.GuildMemberShowcase })));
 
 export function HomePage() {
   const [events, setEvents] = useState<GuildEvent[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [signupMap, setSignupMap] = useState<Record<string, Signup[]>>({});
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState("");
   const todayEvents = events.filter((event) => isEventToday(event));
@@ -25,10 +29,15 @@ export function HomePage() {
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
-    Promise.all([listEvents(20), listPosts(3)])
-      .then(([eventRows, postRows]) => {
+    Promise.all([listHomepageEvents(6), listPosts(3)])
+      .then(async ([eventRows, postRows]) => {
+        const today = eventRows.find((event) => isEventToday(event));
+        const featured = today ?? nextEvent(eventRows);
+        const eventIds = [...new Set([featured?.id, ...eventRows.slice(0, 3).map((event) => event.id)].filter((id): id is string => Boolean(id)))];
+        const signupRows = await listSignupsForEvents(eventIds);
         setEvents(eventRows);
         setPosts(postRows);
+        setSignupMap(signupsByEvent(eventIds, signupRows));
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : "读取失败"))
       .finally(() => setLoading(false));
@@ -41,7 +50,7 @@ export function HomePage() {
       <section className="space-y-3">
         <SectionTitle eyebrow={todayEvents.length ? "TODAY" : "NEXT RAID"} title={todayEvents.length ? "今日活动" : "下一场活动"} />
         {featuredEvent ? (
-          <EventCard event={featuredEvent} key={featuredEvent.id} prominent />
+          <EventCard event={featuredEvent} key={featuredEvent.id} prominent signups={signupMap[featuredEvent.id] ?? []} />
         ) : (
           <Link className="block rounded-guild border border-dashed border-guild-gold/60 bg-guild-panelSoft p-4 text-guild-ink" to="/events">
             <p className="font-black">今天还没有活动</p>
@@ -75,7 +84,9 @@ export function HomePage() {
       {error ? <ErrorState message={error} /> : null}
       {loading ? <LoadingState /> : null}
 
-      <GuildMemberShowcase />
+      <DeferredSection minHeight={360}>
+        <Suspense fallback={<LoadingState />}><GuildMemberShowcase /></Suspense>
+      </DeferredSection>
 
       <div className="grid gap-4 md:grid-cols-2">
         <NoticeCard />
@@ -86,7 +97,7 @@ export function HomePage() {
         <section className="space-y-3">
           <SectionTitle eyebrow="Today" title="最近活动" />
           {events.length ? (
-            events.slice(0, 3).map((event) => <EventCard event={event} key={event.id} />)
+            events.slice(0, 3).map((event) => <EventCard event={event} key={event.id} signups={signupMap[event.id] ?? []} />)
           ) : (
             <EmptyState title="暂无活动" description="等团长发布第一场活动。" />
           )}

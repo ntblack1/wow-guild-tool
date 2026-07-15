@@ -18,6 +18,8 @@ const initialInput: CharacterInput = {
   item_level: null,
   note: "",
   avatar_url: null,
+  avatar_position_x: 50,
+  avatar_position_y: 50,
 };
 
 export function CharactersPage() {
@@ -103,10 +105,10 @@ export function CharactersPage() {
       {message ? <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">{message}</p> : null}
       <form className="guild-card grid gap-3" onSubmit={handleSubmit}>
         <div className="flex items-center gap-3 rounded-md border border-guild-line bg-white/60 p-3">
-          <CharacterAvatar avatarUrl={avatarPreview || input.avatar_url} className="h-14 w-14" name={input.name || "角"} />
+          <CharacterAvatar avatarUrl={avatarPreview || input.avatar_url} className="h-14 w-14" name={input.name || "角"} positionX={input.avatar_position_x} positionY={input.avatar_position_y} />
           <label className="min-w-0 flex-1 cursor-pointer">
             <span className="inline-flex items-center gap-2 text-sm font-black text-guild-ink"><ImagePlus className="h-4 w-4 text-guild-gold" /> 角色头像（选填）</span>
-            <span className="mt-1 block text-xs text-guild-muted">从手机相册选择 JPG、PNG 或 WebP，最大 2MB</span>
+            <span className="mt-1 block text-xs text-guild-muted">原图最大 8MB，上传前会自动压缩到 1.5MB 内</span>
             <input
               accept="image/jpeg,image/png,image/webp"
               className="sr-only"
@@ -115,6 +117,16 @@ export function CharactersPage() {
             />
           </label>
         </div>
+        {avatarPreview || input.avatar_url ? (
+          <div className="grid gap-3 rounded-md border border-guild-line bg-white/55 p-3 sm:grid-cols-2">
+            <Field label={`头像左右位置 ${input.avatar_position_x}%`}>
+              <input className="w-full accent-guild-gold" max={100} min={0} onChange={(event) => setInput({ ...input, avatar_position_x: Number(event.target.value) })} type="range" value={input.avatar_position_x} />
+            </Field>
+            <Field label={`头像上下位置 ${input.avatar_position_y}%`}>
+              <input className="w-full accent-guild-gold" max={100} min={0} onChange={(event) => setInput({ ...input, avatar_position_y: Number(event.target.value) })} type="range" value={input.avatar_position_y} />
+            </Field>
+          </div>
+        ) : null}
         <Field label="角色名">
           <input className="guild-input" value={input.name} onChange={(e) => setInput({ ...input, name: e.target.value })} required />
         </Field>
@@ -152,7 +164,7 @@ export function CharactersPage() {
         {characters.length ? characters.map((character) => (
           <article className="guild-card" key={character.id}>
             <div className="flex items-start gap-3">
-              <CharacterAvatar avatarUrl={character.avatar_url} name={character.name} />
+              <CharacterAvatar avatarUrl={character.avatar_url} name={character.name} positionX={character.avatar_position_x} positionY={character.avatar_position_y} />
               <div className="min-w-0 flex-1">
                 <h2 className="font-black text-guild-ink">{character.name}</h2>
                 <p className="mt-1 text-sm text-guild-muted">
@@ -174,6 +186,8 @@ export function CharactersPage() {
                       item_level: character.item_level,
                       note: character.note,
                       avatar_url: character.avatar_url,
+                      avatar_position_x: character.avatar_position_x,
+                      avatar_position_y: character.avatar_position_y,
                     });
                     setAvatarFile(null);
                   }}

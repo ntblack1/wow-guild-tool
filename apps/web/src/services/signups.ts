@@ -13,6 +13,25 @@ export async function listEventSignups(eventId: string) {
   return data ?? [];
 }
 
+export async function listSignupsForEvents(eventIds: string[]) {
+  if (!eventIds.length) return [];
+  const { data, error } = await requireSupabase()
+    .from("signups")
+    .select("*, character:characters(*)")
+    .in("event_id", eventIds)
+    .order("created_at", { ascending: true })
+    .returns<Signup[]>();
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+export function signupsByEvent(eventIds: string[], signups: Signup[]) {
+  const grouped = Object.fromEntries(eventIds.map((eventId) => [eventId, [] as Signup[]]));
+  for (const signup of signups) grouped[signup.event_id]?.push(signup);
+  return grouped;
+}
+
 export async function createSignup(input: {
   event_id: string;
   character_id: string;

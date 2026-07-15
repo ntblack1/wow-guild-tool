@@ -26,6 +26,10 @@ export type Profile = {
   id: string;
   display_name: string;
   role: UserRole;
+  showcase_image_url: string | null;
+  showcase_position_x: number;
+  showcase_position_y: number;
+  showcase_caption: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -40,6 +44,8 @@ export type GuildCharacter = {
   item_level: number | null;
   note: string | null;
   avatar_url: string | null;
+  avatar_position_x: number;
+  avatar_position_y: number;
   created_at: string;
   updated_at: string;
 };
@@ -88,8 +94,11 @@ export type Comment = {
   post_id: string;
   author_id: string;
   body: string;
+  parent_id: string | null;
+  quoted_text: string | null;
   created_at: string;
   author?: Profile;
+  parent?: Comment;
 };
 
 export type Report = {
@@ -106,7 +115,7 @@ export type Report = {
 
 export type CharacterInput = Pick<
   GuildCharacter,
-  "name" | "class_name" | "spec" | "combat_role" | "item_level" | "note" | "avatar_url"
+  "name" | "class_name" | "spec" | "combat_role" | "item_level" | "note" | "avatar_url" | "avatar_position_x" | "avatar_position_y"
 >;
 
 export type EventInput = Pick<

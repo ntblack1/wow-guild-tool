@@ -13,6 +13,21 @@ export async function listEvents(limit = 20) {
   return data ?? [];
 }
 
+export async function listHomepageEvents(limit = 6) {
+  const cutoff = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await requireSupabase()
+    .from("events")
+    .select("*")
+    .gte("starts_at", cutoff)
+    .neq("status", "finished")
+    .order("starts_at", { ascending: true })
+    .limit(limit)
+    .returns<GuildEvent[]>();
+
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function getEvent(id: string) {
   const { data, error } = await requireSupabase()
     .from("events")

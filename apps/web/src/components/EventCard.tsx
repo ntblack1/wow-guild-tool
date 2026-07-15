@@ -2,6 +2,7 @@ import { CalendarClock, HeartPulse, Shield, Swords, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { eventRoleComposition, eventRoleNeeds, formatDateTime, statusLabel } from "../services/format";
 import type { GuildEvent, Signup } from "../types";
+import { CharacterAvatar } from "./CharacterAvatar";
 import { StatusBadge } from "./StatusBadge";
 
 type EventCardProps = {
@@ -43,14 +44,34 @@ export function EventCard({ event, signupCount = 0, roleNeed = "缺口待确认"
         </span>
       </div>
       {signups ? (
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          {roleItems.map(({ key, label, icon: Icon, color }) => (
-            <span className="flex min-w-0 items-center justify-center gap-1 rounded-md bg-white/75 px-2 py-2 text-xs font-bold" key={key}>
-              <Icon className={`h-4 w-4 ${color}`} />
-              {label} {composition.counts[key]}/{composition.targets[key]}
-            </span>
-          ))}
-        </div>
+        <>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {roleItems.map(({ key, label, icon: Icon, color }) => (
+              <span className="flex min-w-0 items-center justify-center gap-1 rounded-md bg-white/75 px-2 py-2 text-xs font-bold" key={key}>
+                <Icon className={`h-4 w-4 ${color}`} />
+                {label} {composition.counts[key]}/{composition.targets[key]}
+              </span>
+            ))}
+          </div>
+          <div className="mt-4 rounded-md border border-white/80 bg-white/65 p-3">
+            <p className="text-xs font-black text-guild-muted">已报名成员</p>
+            {signups.length ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {signups.slice(0, 10).map((signup) => {
+                  const character = signup.character;
+                  return (
+                    <span className={`flex min-w-0 items-center gap-2 rounded-full border border-guild-line bg-white/90 py-1 pl-1 pr-3 ${signup.status === "请假" ? "opacity-55" : ""}`} key={signup.id}>
+                      <CharacterAvatar avatarUrl={character?.avatar_url} className="h-8 w-8" name={character?.name ?? "未"} positionX={character?.avatar_position_x} positionY={character?.avatar_position_y} />
+                      <span className="max-w-28 truncate text-xs font-black text-guild-ink">{character?.name ?? "未知角色"}</span>
+                      <span className="text-[11px] font-bold text-guild-muted">{signup.combat_role}</span>
+                    </span>
+                  );
+                })}
+                {signups.length > 10 ? <span className="guild-pill">还有 {signups.length - 10} 人</span> : null}
+              </div>
+            ) : <p className="mt-2 text-sm text-guild-muted">暂时没人报名，来坐第一把交椅。</p>}
+          </div>
+        </>
       ) : null}
       <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-guild-line/70">
         <div className="h-full rounded-full bg-guild-mint" style={{ width: `${signups ? composition.percent : Math.min(100, (count / event.capacity) * 100)}%` }} />

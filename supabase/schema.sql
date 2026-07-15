@@ -8,6 +8,10 @@ create table if not exists public.profiles (
   id uuid primary key,
   display_name text not null default '八块腹肌成员',
   role text not null default 'member' check (role in ('member', 'leader', 'admin')),
+  showcase_image_url text,
+  showcase_position_x integer not null default 50 check (showcase_position_x between 0 and 100),
+  showcase_position_y integer not null default 50 check (showcase_position_y between 0 and 100),
+  showcase_caption text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -22,6 +26,8 @@ create table if not exists public.characters (
   item_level integer check (item_level is null or item_level >= 0),
   note text,
   avatar_url text,
+  avatar_position_x integer not null default 50 check (avatar_position_x between 0 and 100),
+  avatar_position_y integer not null default 50 check (avatar_position_y between 0 and 100),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -56,6 +62,8 @@ create table if not exists public.posts (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   body text not null,
+  parent_id uuid references public.comments(id) on delete set null,
+  quoted_text text,
   category text not null check (category in ('开团通知', '副本攻略', '插件宏区', '装备交易', '吐槽大会', '战报区')),
   author_id uuid not null references public.profiles(id) on delete cascade,
   is_pinned boolean not null default false,
@@ -88,9 +96,23 @@ alter table public.profiles alter column display_name set default '八块腹肌�
 alter table public.profiles drop constraint if exists profiles_id_fkey;
 alter table public.profiles drop constraint if exists profiles_role_check;
 alter table public.profiles add constraint profiles_role_check check (role in ('member', 'leader', 'admin'));
+alter table public.profiles add column if not exists showcase_image_url text;
+alter table public.profiles add column if not exists showcase_position_x integer not null default 50;
+alter table public.profiles add column if not exists showcase_position_y integer not null default 50;
+alter table public.profiles add column if not exists showcase_caption text;
+alter table public.profiles drop constraint if exists profiles_showcase_position_x_check;
+alter table public.profiles add constraint profiles_showcase_position_x_check check (showcase_position_x between 0 and 100);
+alter table public.profiles drop constraint if exists profiles_showcase_position_y_check;
+alter table public.profiles add constraint profiles_showcase_position_y_check check (showcase_position_y between 0 and 100);
 alter table public.characters drop constraint if exists characters_combat_role_check;
 alter table public.characters add constraint characters_combat_role_check check (combat_role in ('T', 'N', 'DPS'));
 alter table public.characters add column if not exists avatar_url text;
+alter table public.characters add column if not exists avatar_position_x integer not null default 50;
+alter table public.characters add column if not exists avatar_position_y integer not null default 50;
+alter table public.characters drop constraint if exists characters_avatar_position_x_check;
+alter table public.characters add constraint characters_avatar_position_x_check check (avatar_position_x between 0 and 100);
+alter table public.characters drop constraint if exists characters_avatar_position_y_check;
+alter table public.characters add constraint characters_avatar_position_y_check check (avatar_position_y between 0 and 100);
 alter table public.events drop constraint if exists events_status_check;
 alter table public.events add constraint events_status_check check (status in ('draft', 'open', 'closed', 'finished'));
 alter table public.signups alter column status set default '已报名';
@@ -98,12 +120,15 @@ alter table public.signups drop constraint if exists signups_status_check;
 alter table public.signups add constraint signups_status_check check (status in ('已报名', '已确认', '替补', '请假'));
 alter table public.posts drop constraint if exists posts_category_check;
 alter table public.posts add constraint posts_category_check check (category in ('开团通知', '副本攻略', '插件宏区', '装备交易', '吐槽大会', '战报区'));
+alter table public.comments add column if not exists parent_id uuid references public.comments(id) on delete set null;
+alter table public.comments add column if not exists quoted_text text;
 
 create index if not exists characters_user_id_idx on public.characters(user_id);
 create index if not exists events_starts_at_idx on public.events(starts_at);
 create index if not exists signups_event_id_idx on public.signups(event_id);
 create index if not exists posts_pinned_created_idx on public.posts(is_pinned desc, created_at desc);
 create index if not exists comments_post_id_idx on public.comments(post_id);
+create index if not exists comments_parent_id_idx on public.comments(parent_id);
 create index if not exists reports_created_at_idx on public.reports(created_at desc);
 
 -- Character avatars are public images, but members may only upload files inside their own folder.
@@ -135,6 +160,36 @@ for update to authenticated using (
 create policy "members delete own character avatars" on storage.objects
 for delete to authenticated using (
   bucket_id = 'character-avatars' and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('member-showcase', 'member-showcase', true, 2097152, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update set public = true, file_size_limit = 2097152,
+  allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp'];
+
+drop policy if exists "member showcase readable" on storage.objects;
+drop policy if exists "members upload own showcase" on storage.objects;
+drop policy if exists "members update own showcase" on storage.objects;
+drop policy if exists "members delete own showcase" on storage.objects;
+
+create policy "member showcase readable" on storage.objects
+for select to anon, authenticated using (bucket_id = 'member-showcase');
+
+create policy "members upload own showcase" on storage.objects
+for insert to authenticated with check (
+  bucket_id = 'member-showcase' and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "members update own showcase" on storage.objects
+for update to authenticated using (
+  bucket_id = 'member-showcase' and (storage.foldername(name))[1] = auth.uid()::text
+) with check (
+  bucket_id = 'member-showcase' and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "members delete own showcase" on storage.objects
+for delete to authenticated using (
+  bucket_id = 'member-showcase' and (storage.foldername(name))[1] = auth.uid()::text
 );
 
 create or replace function public.set_updated_at()
@@ -251,6 +306,7 @@ drop policy if exists "managers update posts" on public.posts;
 drop policy if exists "comments readable" on public.comments;
 drop policy if exists "users create own comments" on public.comments;
 drop policy if exists "guild users create comments" on public.comments;
+drop policy if exists "users delete own comments" on public.comments;
 drop policy if exists "reports readable" on public.reports;
 drop policy if exists "admins create reports" on public.reports;
 drop policy if exists "guild users create reports" on public.reports;
@@ -334,6 +390,9 @@ for select to anon, authenticated using (true);
 create policy "users create own comments" on public.comments
 for insert to authenticated with check (author_id = auth.uid());
 
+create policy "users delete own comments" on public.comments
+for delete to authenticated using (author_id = auth.uid() or public.is_guild_manager());
+
 create policy "reports readable" on public.reports
 for select to anon, authenticated using (true);
 
@@ -349,5 +408,5 @@ with check (public.is_guild_manager());
 -- A member may rename their profile, but role changes remain SQL-admin only.
 revoke insert, delete on public.profiles from anon, authenticated;
 revoke update on public.profiles from anon, authenticated;
-grant update (display_name) on public.profiles to authenticated;
+grant update (display_name, showcase_image_url, showcase_position_x, showcase_position_y, showcase_caption) on public.profiles to authenticated;
 grant execute on function public.is_guild_manager(uuid) to anon, authenticated;
