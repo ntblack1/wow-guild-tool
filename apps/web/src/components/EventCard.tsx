@@ -9,6 +9,7 @@ type EventCardProps = {
   signupCount?: number;
   roleNeed?: string;
   signups?: Signup[];
+  prominent?: boolean;
 };
 
 const roleItems = [
@@ -17,13 +18,13 @@ const roleItems = [
   { key: "DPS", label: "DPS", icon: Swords, color: "text-rose-500" },
 ] as const;
 
-export function EventCard({ event, signupCount = 0, roleNeed = "缺口待确认", signups }: EventCardProps) {
+export function EventCard({ event, signupCount = 0, roleNeed = "缺口待确认", signups, prominent = false }: EventCardProps) {
   const composition = eventRoleComposition(signups ?? [], event.capacity);
   const count = signups ? signups.length : signupCount;
   const need = signups ? eventRoleNeeds(signups, event.capacity) : roleNeed;
 
   return (
-    <Link className="guild-card block" to={`/events/${event.id}`}>
+    <Link className={`guild-card block ${prominent ? "border-guild-gold/60 bg-[linear-gradient(135deg,#FFF0D6,#FFFFFF_60%,#BEE7FF)] shadow-soft" : ""}`} to={`/events/${event.id}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold text-guild-gold">{event.raid_name}</p>
@@ -54,7 +55,7 @@ export function EventCard({ event, signupCount = 0, roleNeed = "缺口待确认"
       <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-guild-line/70">
         <div className="h-full rounded-full bg-guild-mint" style={{ width: `${signups ? composition.percent : Math.min(100, (count / event.capacity) * 100)}%` }} />
       </div>
-      <span className="mt-4 inline-flex text-sm font-black text-guild-gold">立即查看并报名 →</span>
+      <span className="mt-4 inline-flex text-sm font-black text-guild-gold">{prominent ? "立即报名 →" : "立即查看并报名 →"}</span>
     </Link>
   );
 }

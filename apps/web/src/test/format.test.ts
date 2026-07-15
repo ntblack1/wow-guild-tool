@@ -4,10 +4,12 @@ import {
   eventRoleComposition,
   eventRoleNeeds,
   groupSignupsByRole,
+  isEventToday,
+  nextEvent,
   sortPostsForForum,
   statusLabel,
 } from "../services/format";
-import type { Post, Signup } from "../types";
+import type { GuildEvent, Post, Signup } from "../types";
 
 describe("format helpers", () => {
   it("groups signups by combat role", () => {
@@ -75,5 +77,18 @@ describe("format helpers", () => {
       "这个角色已经报名过该活动。",
     );
     expect(describeSignupConflict("network failed")).toBe("报名失败，请稍后再试。");
+  });
+
+  it("finds today's activity and the next open activity", () => {
+    const now = new Date("2026-07-15T12:00:00+08:00");
+    const events = [
+      { id: "past", starts_at: "2026-07-14T20:00:00+08:00", status: "open" },
+      { id: "today", starts_at: "2026-07-15T20:00:00+08:00", status: "open" },
+      { id: "later", starts_at: "2026-07-16T20:00:00+08:00", status: "open" },
+    ] as GuildEvent[];
+
+    expect(isEventToday(events[1]!, now)).toBe(true);
+    expect(isEventToday(events[0]!, now)).toBe(false);
+    expect(nextEvent(events, now)?.id).toBe("today");
   });
 });

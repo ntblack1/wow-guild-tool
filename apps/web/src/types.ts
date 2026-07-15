@@ -39,6 +39,7 @@ export type GuildCharacter = {
   combat_role: CombatRole;
   item_level: number | null;
   note: string | null;
+  avatar_url: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -105,7 +106,7 @@ export type Report = {
 
 export type CharacterInput = Pick<
   GuildCharacter,
-  "name" | "class_name" | "spec" | "combat_role" | "item_level" | "note"
+  "name" | "class_name" | "spec" | "combat_role" | "item_level" | "note" | "avatar_url"
 >;
 
 export type EventInput = Pick<

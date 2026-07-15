@@ -1,4 +1,4 @@
-import type { CombatRole, ForumSortMode, Post, Signup } from "../types";
+import type { CombatRole, ForumSortMode, GuildEvent, Post, Signup } from "../types";
 
 export function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -7,6 +7,17 @@ export function formatDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+export function isEventToday(event: Pick<GuildEvent, "starts_at">, now = new Date()) {
+  const date = new Date(event.starts_at);
+  return date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate();
+}
+
+export function nextEvent(events: GuildEvent[], now = new Date()) {
+  return events.find((event) => event.status === "open" && new Date(event.starts_at).getTime() >= now.getTime()) ?? null;
 }
 
 export function groupSignupsByRole(signups: Signup[]) {

@@ -9,7 +9,7 @@ import { SectionTitle } from "../components/SectionTitle";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { getCurrentUser } from "../services/auth";
 import { createEvent, listEvents } from "../services/events";
-import { eventRoleNeeds } from "../services/format";
+import { eventRoleNeeds, isEventToday } from "../services/format";
 import { listEventSignups } from "../services/signups";
 import type { EventInput, GuildEvent, Signup } from "../types";
 
@@ -47,6 +47,7 @@ export function EventsPage() {
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<(typeof filters)[number]>("全部");
+  const todayEvents = events.filter((guildEvent) => isEventToday(guildEvent));
 
   const filteredEvents = useMemo(() => {
     return events.filter((guildEvent) => {
@@ -122,6 +123,18 @@ export function EventsPage() {
       </div>
       {error ? <ErrorState message={error} /> : null}
       {message ? <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">{message}</p> : null}
+      <section className="space-y-3">
+        <SectionTitle eyebrow="TODAY" title="今日活动" />
+        {todayEvents.length ? todayEvents.map((guildEvent) => {
+          const signups = signupMap[guildEvent.id] ?? [];
+          return <EventCard event={guildEvent} key={guildEvent.id} prominent roleNeed={eventRoleNeeds(signups, guildEvent.capacity)} signups={signups} signupCount={signups.length} />;
+        }) : (
+          <div className="rounded-guild border border-dashed border-guild-line bg-white/55 p-4">
+            <p className="font-black text-guild-ink">今天暂无开团</p>
+            <p className="mt-1 text-sm text-guild-muted">想开团？下面选择副本后即可发布。</p>
+          </div>
+        )}
+      </section>
       {userId ? (
         <form className="guild-card grid gap-3" onSubmit={handleSubmit}>
           <h2 className="font-black text-guild-ink">发起活动</h2>

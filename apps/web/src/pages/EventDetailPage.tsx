@@ -1,9 +1,9 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Check, HeartPulse, Shield, Swords } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, HeartPulse, Shield, Sparkles, Swords } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
+import { CharacterAvatar } from "../components/CharacterAvatar";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
-import { Field } from "../components/Field";
 import { LoadingState } from "../components/LoadingState";
 import { SectionTitle } from "../components/SectionTitle";
 import { StatusBadge } from "../components/StatusBadge";
@@ -36,7 +36,6 @@ export function EventDetailPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userId, setUserId] = useState("");
   const [characterId, setCharacterId] = useState("");
-  const [note, setNote] = useState("");
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -73,8 +72,7 @@ export function EventDetailPage() {
       .finally(() => setLoading(false));
   }, [eventId]);
 
-  async function handleSignup(eventSubmit: FormEvent) {
-    eventSubmit.preventDefault();
+  async function handleSignup() {
     const character = characters.find((item) => item.id === characterId);
     if (!userId || !character || submitting) return;
     setSubmitting(true);
@@ -85,9 +83,8 @@ export function EventDetailPage() {
         character_id: character.id,
         user_id: userId,
         combat_role: character.combat_role,
-        note,
+        note: null,
       });
-      setNote("");
       await refresh();
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
@@ -159,38 +156,47 @@ export function EventDetailPage() {
         </div>
       </article>
 
-      <section className="guild-card grid gap-3">
-        <h2 className="font-black text-guild-ink">我的报名</h2>
+      <section className="overflow-hidden rounded-guild border border-guild-gold/40 bg-[linear-gradient(135deg,#FFF0D6,#FFFFFF_54%,#BEE7FF)] p-4 shadow-glow">
+        <div className="flex items-center gap-2">
+          <span className="grid h-9 w-9 place-items-center rounded-full bg-guild-gold text-white shadow-soft"><Sparkles className="h-4 w-4" /></span>
+          <div>
+            <p className="text-xs font-bold text-guild-gold">RAID SIGNUP</p>
+            <h2 className="font-black text-guild-ink">快速报名</h2>
+          </div>
+        </div>
         {!userId ? (
-          <div className="grid gap-3">
+          <div className="mt-4 grid gap-3">
             <ErrorState message="请先登录后再报名。" />
             <Link className="guild-button text-center" to="/auth">去登录</Link>
           </div>
         ) : !characters.length ? (
-          <div className="grid gap-3">
+          <div className="mt-4 grid gap-3">
             <ErrorState message="你还没有角色，请先创建角色。" />
             <Link className="guild-button text-center" to="/characters">先创建角色</Link>
           </div>
         ) : mySignup ? (
-          <div className="rounded-md bg-white/70 p-3">
+          <div className="mt-4 rounded-md border border-emerald-200 bg-white/80 p-3">
             <div className="flex items-start justify-between gap-3">
-              <div>
+              <div className="flex min-w-0 items-center gap-3">
+                <CharacterAvatar avatarUrl={mySignup.character?.avatar_url} name={mySignup.character?.name ?? "我"} />
+                <div>
                 <p className="font-bold text-guild-ink">{mySignup.character?.name ?? "我的角色"}</p>
                 <p className="mt-1 text-sm text-guild-muted">
                   {mySignup.character?.class_name} · {mySignup.character?.spec} · {roleTitles[mySignup.combat_role]}
                 </p>
+                </div>
               </div>
               <StatusBadge>{mySignup.status}</StatusBadge>
             </div>
-            {mySignup.note ? <p className="mt-2 text-sm text-guild-muted">{mySignup.note}</p> : null}
-            <button className="guild-button-secondary mt-3" disabled={submitting} onClick={handleCancelSignup} type="button">
+            <p className="mt-3 text-sm font-bold text-emerald-700">你已在本场活动阵容中</p>
+            <button className="guild-button-secondary mt-3 min-h-9" disabled={submitting} onClick={handleCancelSignup} type="button">
               取消报名
             </button>
           </div>
         ) : (
-          <form className="grid gap-3" onSubmit={handleSignup}>
+          <div className="mt-4 grid gap-3">
             <div>
-              <p className="mb-2 text-sm font-bold text-guild-ink">选择出战角色</p>
+              <p className="mb-2 text-sm font-bold text-guild-ink">1. 选择出战角色</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {characters.map((character) => {
                   const Icon = roleIcons[character.combat_role];
@@ -203,12 +209,10 @@ export function EventDetailPage() {
                       onClick={() => setCharacterId(character.id)}
                       type="button"
                     >
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white shadow-sm">
-                        <Icon className="h-5 w-5 text-guild-gold" />
-                      </span>
+                      <CharacterAvatar avatarUrl={character.avatar_url} className="h-10 w-10" name={character.name} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-black text-guild-ink">{character.name}</span>
-                        <span className="block truncate text-xs text-guild-muted">{character.class_name} · {character.spec} · {roleTitles[character.combat_role]}</span>
+                        <span className="flex items-center gap-1 truncate text-xs text-guild-muted"><Icon className="h-3.5 w-3.5 text-guild-gold" />{character.class_name} · {character.spec} · {roleTitles[character.combat_role]}</span>
                       </span>
                       {selected ? <Check className="h-5 w-5 shrink-0 text-emerald-600" /> : null}
                     </button>
@@ -216,13 +220,11 @@ export function EventDetailPage() {
                 })}
               </div>
             </div>
-            <Field label="备注（选填）">
-              <textarea className="guild-input" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="例如：可能迟到 10 分钟、可以切治疗" />
-            </Field>
-            <button className="guild-button" disabled={submitting || !characterId}>
-              {submitting ? "报名中" : selectedCharacter ? `用 ${selectedCharacter.name} 报名` : "确认报名"}
+            <button className="guild-button min-h-14 text-base" disabled={submitting || !characterId} onClick={() => void handleSignup()} type="button">
+              {submitting ? "报名中" : selectedCharacter ? `立即用 ${selectedCharacter.name} 报名` : "2. 立即报名"}
             </button>
-          </form>
+            <p className="text-center text-xs text-guild-muted">报名后可随时取消，团长会在阵容中确认状态。</p>
+          </div>
         )}
       </section>
 
@@ -234,7 +236,10 @@ export function EventDetailPage() {
               {grouped[role].length ? grouped[role].map((signup) => (
                 <div className="rounded-md bg-white/70 p-3" key={signup.id}>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-guild-ink">{signup.character?.name ?? "未知角色"}</span>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <CharacterAvatar avatarUrl={signup.character?.avatar_url} className="h-8 w-8" name={signup.character?.name ?? "未"} />
+                      <span className="truncate font-semibold text-guild-ink">{signup.character?.name ?? "未知角色"}</span>
+                    </div>
                     <StatusBadge>{signup.status}</StatusBadge>
                   </div>
                   <p className="mt-1 text-xs text-guild-muted">

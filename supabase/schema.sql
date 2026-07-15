@@ -21,6 +21,7 @@ create table if not exists public.characters (
   combat_role text not null check (combat_role in ('T', 'N', 'DPS')),
   item_level integer check (item_level is null or item_level >= 0),
   note text,
+  avatar_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -89,6 +90,7 @@ alter table public.profiles drop constraint if exists profiles_role_check;
 alter table public.profiles add constraint profiles_role_check check (role in ('member', 'leader', 'admin'));
 alter table public.characters drop constraint if exists characters_combat_role_check;
 alter table public.characters add constraint characters_combat_role_check check (combat_role in ('T', 'N', 'DPS'));
+alter table public.characters add column if not exists avatar_url text;
 alter table public.events drop constraint if exists events_status_check;
 alter table public.events add constraint events_status_check check (status in ('draft', 'open', 'closed', 'finished'));
 alter table public.signups alter column status set default '已报名';
@@ -103,6 +105,37 @@ create index if not exists signups_event_id_idx on public.signups(event_id);
 create index if not exists posts_pinned_created_idx on public.posts(is_pinned desc, created_at desc);
 create index if not exists comments_post_id_idx on public.comments(post_id);
 create index if not exists reports_created_at_idx on public.reports(created_at desc);
+
+-- Character avatars are public images, but members may only upload files inside their own folder.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('character-avatars', 'character-avatars', true, 2097152, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update set public = true, file_size_limit = 2097152,
+  allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp'];
+
+drop policy if exists "character avatars readable" on storage.objects;
+drop policy if exists "members upload own character avatars" on storage.objects;
+drop policy if exists "members update own character avatars" on storage.objects;
+drop policy if exists "members delete own character avatars" on storage.objects;
+
+create policy "character avatars readable" on storage.objects
+for select to anon, authenticated using (bucket_id = 'character-avatars');
+
+create policy "members upload own character avatars" on storage.objects
+for insert to authenticated with check (
+  bucket_id = 'character-avatars' and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "members update own character avatars" on storage.objects
+for update to authenticated using (
+  bucket_id = 'character-avatars' and (storage.foldername(name))[1] = auth.uid()::text
+) with check (
+  bucket_id = 'character-avatars' and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "members delete own character avatars" on storage.objects
+for delete to authenticated using (
+  bucket_id = 'character-avatars' and (storage.foldername(name))[1] = auth.uid()::text
+);
 
 create or replace function public.set_updated_at()
 returns trigger

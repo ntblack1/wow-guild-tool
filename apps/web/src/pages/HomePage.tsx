@@ -11,6 +11,7 @@ import { RankCard } from "../components/RankCard";
 import { SectionTitle } from "../components/SectionTitle";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { listEvents } from "../services/events";
+import { isEventToday, nextEvent } from "../services/format";
 import { listPosts } from "../services/posts";
 import type { GuildEvent, Post } from "../types";
 
@@ -19,10 +20,12 @@ export function HomePage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState("");
+  const todayEvents = events.filter((event) => isEventToday(event));
+  const featuredEvent = todayEvents[0] ?? nextEvent(events);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
-    Promise.all([listEvents(3), listPosts(3)])
+    Promise.all([listEvents(20), listPosts(3)])
       .then(([eventRows, postRows]) => {
         setEvents(eventRows);
         setPosts(postRows);
@@ -34,6 +37,18 @@ export function HomePage() {
   return (
     <section className="space-y-5">
       <HeroBanner />
+
+      <section className="space-y-3">
+        <SectionTitle eyebrow={todayEvents.length ? "TODAY" : "NEXT RAID"} title={todayEvents.length ? "今日活动" : "下一场活动"} />
+        {featuredEvent ? (
+          <EventCard event={featuredEvent} key={featuredEvent.id} prominent />
+        ) : (
+          <Link className="block rounded-guild border border-dashed border-guild-gold/60 bg-guild-panelSoft p-4 text-guild-ink" to="/events">
+            <p className="font-black">今天还没有活动</p>
+            <p className="mt-1 text-sm text-guild-muted">登录后就能发起第一场活动。</p>
+          </Link>
+        )}
+      </section>
 
       <div className="grid gap-3 sm:grid-cols-4">
         <Link className="guild-card block" to="/events">
@@ -71,7 +86,7 @@ export function HomePage() {
         <section className="space-y-3">
           <SectionTitle eyebrow="Today" title="最近活动" />
           {events.length ? (
-            events.map((event) => <EventCard event={event} key={event.id} />)
+            events.slice(0, 3).map((event) => <EventCard event={event} key={event.id} />)
           ) : (
             <EmptyState title="暂无活动" description="等团长发布第一场活动。" />
           )}
