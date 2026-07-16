@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Eraser, Home, PenLine, Search, X } from "lucide-react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { Field } from "../components/Field";
@@ -27,6 +27,7 @@ const sortModes: ForumSortMode[] = ["最新", "热门"];
 const postPageSize = 20;
 
 export function ForumPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [posts, setPosts] = useState<Post[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -128,11 +129,11 @@ export function ForumPage() {
     setSubmitting(true);
     setError("");
     try {
-      await createPost(userId, input);
+      const createdPost = await createPost(userId, input);
       clearForumPostDraft();
       setInput(initialInput);
       setComposerOpen(false);
-      await refresh();
+      navigate({ pathname: `/forum/${createdPost.id}`, search: forumSearch });
     } catch (caught) {
       setError(friendlyError(caught, "发帖失败，请稍后再试。"));
     } finally {

@@ -21,6 +21,8 @@ const roleItems = [
   { key: "DPS", label: "DPS", icon: Swords, color: "text-rose-500" },
 ] as const;
 
+const signupRoleLabels = { T: "T", N: "治疗", DPS: "DPS" } as const;
+
 export function EventCard({ event, signupCount, roleNeed = "缺口待确认", signups, prominent = false, currentUserId, search = "" }: EventCardProps) {
   const composition = eventRoleComposition(signups ?? [], event.capacity);
   const summary = eventSignupSummary(signups ?? []);
@@ -80,7 +82,7 @@ export function EventCard({ event, signupCount, roleNeed = "缺口待确认", si
                     <span className={`flex min-w-0 items-center gap-2 rounded-full border border-guild-line bg-white/90 py-1 pl-1 pr-3 ${signup.status === "请假" ? "opacity-55" : ""}`} key={signup.id}>
                       <CharacterAvatar avatarUrl={character?.avatar_url} className="h-8 w-8" name={character?.name ?? "未"} positionX={character?.avatar_position_x} positionY={character?.avatar_position_y} />
                       <span className="max-w-28 truncate text-xs font-black text-guild-ink">{character?.name ?? "未知角色"}</span>
-                      <span className="text-[11px] font-bold text-guild-muted">{signup.status === "替补" || signup.status === "请假" ? signup.status : signup.combat_role}</span>
+                      <span className="text-[11px] font-bold text-guild-muted">{signup.status === "替补" || signup.status === "请假" ? signup.status : signupRoleLabels[signup.combat_role]}</span>
                     </span>
                   );
                 })}

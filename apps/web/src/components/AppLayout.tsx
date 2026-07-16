@@ -50,10 +50,12 @@ export function AppLayout() {
           </NavLink>
           <NavLink
             to="/auth"
-            className="guild-button-secondary min-h-9 max-w-40 truncate px-3 py-1 text-xs"
+            aria-label={currentUser ? `${currentUser.displayName}，账号中心` : "登录或创建账号"}
+            className="guild-button-secondary min-h-9 max-w-40 gap-1.5 px-3 py-1 text-xs"
             title={currentUser?.displayName ?? "登录"}
           >
-            {currentUser?.displayName ?? "登录"}
+            <UserRound aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{currentUser?.displayName ?? "登录"}</span>
           </NavLink>
         </div>
         <nav aria-label="主要导航" className="mx-auto hidden max-w-5xl grid-cols-5 gap-1 px-2 pb-2 text-center text-sm md:grid">

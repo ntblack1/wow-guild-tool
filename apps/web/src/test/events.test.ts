@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { EventCard } from "../components/EventCard";
 import { requireSupabase } from "../lib/supabase";
 import { listEvents, listHomepageEvents, localDayStartIso } from "../services/events";
-import type { GuildEvent } from "../types";
+import type { GuildEvent, Signup } from "../types";
 
 vi.mock("../lib/supabase", () => ({ requireSupabase: vi.fn() }));
 
@@ -84,5 +84,35 @@ describe("activity board helpers", () => {
 
     expect(screen.getByText("阵容读取中")).toBeTruthy();
     expect(screen.queryByText("0/25 人 · 缺口待确认")).toBeNull();
+  });
+
+  it("uses the readable healing label beside member avatars", () => {
+    const event = {
+      id: "raid-1",
+      title: "TOC+ZUG",
+      raid_name: "TOC+ZUG",
+      starts_at: "2026-07-17T20:00:00+08:00",
+      capacity: 25,
+      description: null,
+      status: "open",
+      created_by: "member-1",
+      created_at: "2026-07-16T20:00:00+08:00",
+      updated_at: "2026-07-16T20:00:00+08:00",
+    } as GuildEvent;
+    const signups = [{
+      id: "signup-1",
+      user_id: "member-1",
+      combat_role: "N",
+      status: "已报名",
+      character: { name: "奶妈角色" },
+    }] as Signup[];
+
+    render(createElement(
+      MemoryRouter,
+      { future: { v7_startTransition: true, v7_relativeSplatPath: true } },
+      createElement(EventCard, { event, signups }),
+    ));
+
+    expect(screen.getByText("奶妈角色").parentElement?.textContent).toContain("治疗");
   });
 });
