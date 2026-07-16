@@ -60,6 +60,10 @@ export function nextEvent(events: GuildEvent[], now = new Date()) {
   return events.find((event) => event.status === "open" && new Date(event.starts_at).getTime() >= now.getTime()) ?? null;
 }
 
+export function eventsExcept(events: GuildEvent[], excluded?: Pick<GuildEvent, "id"> | null) {
+  return excluded ? events.filter((event) => event.id !== excluded.id) : events;
+}
+
 export function groupSignupsByRole(signups: Signup[]) {
   const grouped: Record<CombatRole, Signup[]> = {
     T: [],

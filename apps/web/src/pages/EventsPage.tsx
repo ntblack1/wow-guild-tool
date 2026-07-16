@@ -52,11 +52,12 @@ export function EventsPage() {
   const [error, setError] = useState("");
   const filter = eventFilterFromValue(searchParams.get("filter"));
   const eventSearch = eventViewSearch(filter);
+  const showingAllEvents = filter === "全部";
   const todayEvents = events.filter((guildEvent) => isEventToday(guildEvent));
 
   const filteredEvents = useMemo(() => {
     return events.filter((guildEvent) => {
-      if (filter === "全部") return true;
+      if (filter === "全部") return !isEventToday(guildEvent);
       if (filter === "我的报名") {
         return (signupMap[guildEvent.id] ?? []).some((signup) => signup.user_id === userId && signup.status !== "请假");
       }
@@ -151,18 +152,20 @@ export function EventsPage() {
         </button>
       </div>
       {error ? <ErrorState message={error} onRetry={retryRefresh} /> : null}
-      <section className="space-y-3">
-        <SectionTitle eyebrow="TODAY" title="今日活动" />
-        {todayEvents.length ? todayEvents.map((guildEvent) => {
-          const signups = signupMap[guildEvent.id];
-          return <EventCard currentUserId={userId} event={guildEvent} key={guildEvent.id} prominent roleNeed={signups ? eventRoleNeeds(signups, guildEvent.capacity) : undefined} search={eventSearch} signups={signups} signupCount={signups?.length} />;
-        }) : (
-          <div className="rounded-guild border border-dashed border-guild-line bg-white/55 p-4">
-            <p className="font-black text-guild-ink">今天暂无开团</p>
-            <p className="mt-1 text-sm text-guild-muted">想开团？下面选择副本后即可发布。</p>
-          </div>
-        )}
-      </section>
+      {showingAllEvents ? (
+        <section className="space-y-3">
+          <SectionTitle eyebrow="TODAY" title="今日活动" />
+          {todayEvents.length ? todayEvents.map((guildEvent) => {
+            const signups = signupMap[guildEvent.id];
+            return <EventCard currentUserId={userId} event={guildEvent} key={guildEvent.id} prominent roleNeed={signups ? eventRoleNeeds(signups, guildEvent.capacity) : undefined} search={eventSearch} signups={signups} signupCount={signups?.length} />;
+          }) : (
+            <div className="rounded-guild border border-dashed border-guild-line bg-white/55 p-4">
+              <p className="font-black text-guild-ink">今天暂无开团</p>
+              <p className="mt-1 text-sm text-guild-muted">想开团？点击右上角即可发布。</p>
+            </div>
+          )}
+        </section>
+      ) : null}
       {eventCreatorOpen && userId ? (
         <form className="guild-card grid gap-3" onSubmit={handleSubmit}>
           <div className="flex items-center justify-between gap-3">
@@ -229,7 +232,7 @@ export function EventsPage() {
         </div>
       ) : null}
       <section className="space-y-3">
-        <SectionTitle eyebrow="Events" title="活动列表" />
+        <SectionTitle eyebrow={showingAllEvents ? "UPCOMING" : "FILTERED"} title={showingAllEvents ? "后续活动" : `${filter}活动`} />
         <div className="flex gap-2 overflow-x-auto pb-1">
           {eventFilters.filter((item) => item !== "我的报名" || userId).map((item) => (
             <button
@@ -258,7 +261,7 @@ export function EventsPage() {
                 search={eventSearch}
               />
             );
-          }) : <EmptyState title="暂无活动" description="登录后可以发起第一个工会活动。" />}
+          }) : <EmptyState title={showingAllEvents ? "暂无后续活动" : `暂无${filter}活动`} description={showingAllEvents ? "有新开团时会显示在这里。" : "可以切换筛选条件查看其他活动。"} />}
         </div>
       </section>
     </section>

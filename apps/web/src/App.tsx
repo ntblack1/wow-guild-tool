@@ -1,8 +1,9 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout";
 import { HomePage } from "./pages/HomePage";
 import { LoadingState } from "./components/LoadingState";
+import { NotFoundPage } from "./pages/NotFoundPage";
 
 const AuthPage = lazy(() => import("./pages/AuthPage").then((module) => ({ default: module.AuthPage })));
 const CharactersPage = lazy(() => import("./pages/CharactersPage").then((module) => ({ default: module.CharactersPage })));
@@ -24,7 +25,7 @@ export function App() {
         <Route path="/forum" element={<Suspense fallback={<LoadingState />}><ForumPage /></Suspense>} />
         <Route path="/forum/:postId" element={<Suspense fallback={<LoadingState />}><PostDetailPage /></Suspense>} />
         <Route path="/reports" element={<Suspense fallback={<LoadingState />}><ReportsPage /></Suspense>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );

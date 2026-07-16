@@ -12,7 +12,7 @@ import { SectionTitle } from "../components/SectionTitle";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { getCurrentUser } from "../services/auth";
 import { listHomepageEvents } from "../services/events";
-import { isEventToday, nextEvent } from "../services/format";
+import { eventsExcept, isEventToday, nextEvent } from "../services/format";
 import { listPosts, selectHomepageNotice } from "../services/posts";
 import { listReports } from "../services/reports";
 import { listSignupsForEvents, signupsByEvent } from "../services/signups";
@@ -30,6 +30,7 @@ export function HomePage() {
   const [error, setError] = useState("");
   const todayEvents = events.filter((event) => isEventToday(event));
   const featuredEvent = todayEvents[0] ?? nextEvent(events);
+  const followupEvents = eventsExcept(events, featuredEvent).slice(0, 3);
   const notice = selectHomepageNotice(posts);
 
   useEffect(() => {
@@ -121,11 +122,11 @@ export function HomePage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className="space-y-3">
-          <SectionTitle eyebrow="Today" title="最近活动" />
-          {events.length ? (
-            events.slice(0, 3).map((event) => <EventCard currentUserId={userId} event={event} key={event.id} signups={signupMap[event.id]} />)
+          <SectionTitle eyebrow="Upcoming" title="后续活动" />
+          {followupEvents.length ? (
+            followupEvents.map((event) => <EventCard currentUserId={userId} event={event} key={event.id} signups={signupMap[event.id]} />)
           ) : (
-            <EmptyState title="暂无活动" description="等团长发布第一场活动。" />
+            <EmptyState title="暂无其他活动" description="有新开团时会显示在这里。" />
           )}
         </section>
         <section className="space-y-3">

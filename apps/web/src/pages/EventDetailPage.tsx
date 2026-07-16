@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Flag, HeartPulse, Lock, Pencil, Shield, Sparkles, Swords, Unlock, X } from "lucide-react";
 import { Link, useLocation, useParams } from "react-router-dom";
+import { CalendarDownloadButton } from "../components/CalendarDownloadButton";
 import { CharacterAvatar } from "../components/CharacterAvatar";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
@@ -208,16 +209,24 @@ export function EventDetailPage() {
 
   if (!isSupabaseConfigured) return <ErrorState message="请先配置 Supabase 环境变量。" />;
   if (loading) return <LoadingState />;
-  if (!guildEvent) return <EmptyState title="活动不存在" description="这个活动可能已经被删除。" />;
+  if (!guildEvent) return (
+    <section className="space-y-4">
+      <Link className="guild-button-secondary min-h-9 gap-1 px-3 py-1" to={eventsHref}>
+        <ChevronLeft className="h-4 w-4" /> 返回活动列表
+      </Link>
+      <EmptyState title="活动不存在" description="这个活动可能已经被删除，请返回活动列表查看其他开团。" />
+    </section>
+  );
 
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link className="guild-button-secondary min-h-9 gap-1 px-3 py-1" to={eventsHref}>
             <ChevronLeft className="h-4 w-4" /> 返回活动列表
           </Link>
           <ShareButton title={`${guildEvent.title}｜八块腹肌工会活动`} text={`${formatDateTime(guildEvent.starts_at)} 开团，点击查看阵容并报名。`} />
+          {guildEvent.status !== "finished" ? <CalendarDownloadButton event={guildEvent} /> : null}
           <RosterCopyButton event={guildEvent} signups={signups} />
         </div>
         <nav aria-label="页面层级" className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-guild-muted">

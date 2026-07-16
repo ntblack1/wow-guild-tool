@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  eventsExcept,
   buildRosterShareText,
   describeSignupConflict,
   eventActionLabel,
@@ -144,6 +145,8 @@ describe("format helpers", () => {
     expect(isEventToday(events[1]!, now)).toBe(true);
     expect(isEventToday(events[0]!, now)).toBe(false);
     expect(nextEvent(events, now)?.id).toBe("today");
+    expect(eventsExcept(events, events[1]).map((event) => event.id)).toEqual(["past", "later"]);
+    expect(eventsExcept(events, null)).toEqual(events);
   });
 
   it("formats an event time for a datetime-local editor", () => {

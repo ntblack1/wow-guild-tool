@@ -1,0 +1,49 @@
+{
+  "name": "八块腹肌工会大厅",
+  "short_name": "八块腹肌",
+  "description": "八块腹肌工会活动报名、阵容管理、论坛和副本战报。",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#fff7ef",
+  "theme_color": "#f28c5b",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "活动报名",
+      "short_name": "活动",
+      "url": "/events"
+    },
+    {
+      "name": "工会论坛",
+      "short_name": "论坛",
+      "url": "/forum"
+    },
+    {
+      "name": "我的角色",
+      "short_name": "角色",
+      "url": "/characters"
+    }
+  ]
+}

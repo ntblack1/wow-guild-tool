@@ -33,12 +33,16 @@ export function AppLayout() {
             : path === "/characters" ? "我的角色"
               : path === "/reports" ? "副本战报"
                 : path === "/auth" ? "账号中心"
-                  : "工会大厅";
+                  : path === "/" ? "工会大厅"
+                    : "页面不存在";
     document.title = `${pageName}｜八块腹肌工会`;
   }, [location.pathname]);
 
   return (
     <div className="min-h-screen pb-24 text-guild-ink md:pb-0">
+      <a className="fixed left-3 top-2 z-50 -translate-y-20 rounded-md bg-guild-ink px-3 py-2 text-sm font-bold text-white shadow-soft transition focus:translate-y-0" href="#main-content">
+        跳到主要内容
+      </a>
       <header className="sticky top-0 z-10 border-b border-guild-line/70 bg-guild-bg/85 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <NavLink to="/" className="text-lg font-black text-guild-gold">
@@ -52,7 +56,7 @@ export function AppLayout() {
             {currentUser?.displayName ?? "登录"}
           </NavLink>
         </div>
-        <nav className="mx-auto hidden max-w-5xl grid-cols-5 gap-1 px-2 pb-2 text-center text-sm md:grid">
+        <nav aria-label="主要导航" className="mx-auto hidden max-w-5xl grid-cols-5 gap-1 px-2 pb-2 text-center text-sm md:grid">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -69,10 +73,10 @@ export function AppLayout() {
         </nav>
       </header>
       <OfflineBanner />
-      <main className="mx-auto max-w-5xl px-4 py-5">
+      <main className="mx-auto max-w-5xl px-4 py-5" id="main-content" tabIndex={-1}>
         <Outlet />
       </main>
-      <nav className="fixed inset-x-3 bottom-3 z-20 grid grid-cols-5 gap-1 rounded-[24px] border border-white/70 bg-white/85 p-2 shadow-glow backdrop-blur-xl md:hidden">
+      <nav aria-label="手机主要导航" className="fixed inset-x-3 bottom-3 z-20 grid grid-cols-5 gap-1 rounded-[24px] border border-white/70 bg-white/85 p-2 shadow-glow backdrop-blur-xl md:hidden">
         {navItems.map((item) => {
           const Icon = item.icon;
           return (
