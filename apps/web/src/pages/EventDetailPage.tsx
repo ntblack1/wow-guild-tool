@@ -1,20 +1,25 @@
-import { useEffect, useMemo, useState } from "react";
-import { Check, HeartPulse, Shield, Sparkles, Swords } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Check, ChevronLeft, ChevronRight, Flag, HeartPulse, Lock, Pencil, Shield, Sparkles, Swords, Unlock, X } from "lucide-react";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { CharacterAvatar } from "../components/CharacterAvatar";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
+import { Field } from "../components/Field";
 import { LoadingState } from "../components/LoadingState";
+import { RosterCopyButton } from "../components/RosterCopyButton";
 import { SectionTitle } from "../components/SectionTitle";
+import { ShareButton } from "../components/ShareButton";
 import { StatusBadge } from "../components/StatusBadge";
 import { isSupabaseConfigured } from "../lib/supabase";
-import { getCurrentUser } from "../services/auth";
+import { authPath, getCurrentUser } from "../services/auth";
 import { listCharacters } from "../services/characters";
-import { getEvent } from "../services/events";
-import { describeSignupConflict, eventRoleComposition, eventRoleNeeds, formatDateTime, groupSignupsByRole, statusLabel } from "../services/format";
+import { friendlyError } from "../services/errors";
+import { getEvent, updateEvent } from "../services/events";
+import { describeSignupConflict, eventRoleComposition, eventRoleNeeds, eventSignupSummary, formatDateTime, groupSignupsByRole, isActiveRosterSignup, statusLabel, suggestedSignupStatus, toDateTimeLocalValue } from "../services/format";
 import { getProfile } from "../services/profiles";
 import { createSignup, deleteSignup, listEventSignups, updateSignupStatus } from "../services/signups";
-import { signupStatuses, type GuildCharacter, type GuildEvent, type Profile, type Signup, type SignupStatus } from "../types";
+import { validateEventCapacityAgainstRoster } from "../services/validation";
+import { signupStatuses, type CombatRole, type EventInput, type EventStatus, type GuildCharacter, type GuildEvent, type Profile, type Signup, type SignupStatus } from "../types";
 
 const roleTitles = {
   T: "坦克",
@@ -28,36 +33,55 @@ const roleIcons = {
   DPS: Swords,
 } as const;
 
+const signupRoles: CombatRole[] = ["T", "N", "DPS"];
+
 export function EventDetailPage() {
   const { eventId = "" } = useParams();
+  const location = useLocation();
+  const eventsHref = `/events${location.search}`;
   const [guildEvent, setGuildEvent] = useState<GuildEvent | null>(null);
   const [signups, setSignups] = useState<Signup[]>([]);
   const [characters, setCharacters] = useState<GuildCharacter[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userId, setUserId] = useState("");
   const [characterId, setCharacterId] = useState("");
+  const [signupRole, setSignupRole] = useState<CombatRole>("DPS");
+  const [signupNote, setSignupNote] = useState("");
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(false);
+  const [eventInput, setEventInput] = useState<EventInput | null>(null);
   const [error, setError] = useState("");
   const canManage = profile?.role === "admin" || profile?.role === "leader";
-  const grouped = useMemo(() => groupSignupsByRole(signups), [signups]);
+  const canManageEvent = canManage || guildEvent?.created_by === userId;
+  const grouped = useMemo(() => groupSignupsByRole(signups.filter(isActiveRosterSignup)), [signups]);
+  const deferredSignups = useMemo(() => signups.filter((signup) => !isActiveRosterSignup(signup)), [signups]);
+  const signupSummary = useMemo(() => eventSignupSummary(signups), [signups]);
   const composition = useMemo(
     () => eventRoleComposition(signups, guildEvent?.capacity ?? 1),
     [guildEvent?.capacity, signups],
   );
   const mySignup = signups.find((signup) => signup.user_id === userId) ?? null;
   const selectedCharacter = characters.find((character) => character.id === characterId) ?? null;
+  const nextSignupStatus = suggestedSignupStatus(signups, guildEvent?.capacity ?? 1);
 
   async function refresh() {
-    setGuildEvent(await getEvent(eventId));
-    setSignups(await listEventSignups(eventId));
-    const user = await getCurrentUser();
+    const [eventRow, signupRows, user] = await Promise.all([
+      getEvent(eventId),
+      listEventSignups(eventId),
+      getCurrentUser(),
+    ]);
+    setGuildEvent(eventRow);
+    setSignups(signupRows);
     setUserId(user?.id ?? "");
     if (user) {
-      setProfile(await getProfile(user.id));
-      const rows = await listCharacters(user.id);
+      const [profileRow, rows] = await Promise.all([getProfile(user.id), listCharacters(user.id)]);
+      setProfile(profileRow);
       setCharacters(rows);
-      setCharacterId((current) => current || rows[0]?.id || "");
+      const nextCharacterId = rows.some((character) => character.id === characterId) ? characterId : rows[0]?.id ?? "";
+      setCharacterId(nextCharacterId);
+      setSignupRole(rows.find((character) => character.id === nextCharacterId)?.combat_role ?? "DPS");
     } else {
       setProfile(null);
       setCharacters([]);
@@ -65,12 +89,25 @@ export function EventDetailPage() {
     }
   }
 
+  async function retryRefresh() {
+    setError("");
+    try {
+      await refresh();
+    } catch (caught) {
+      setError(friendlyError(caught, "读取活动详情失败，请稍后重试。"));
+    }
+  }
+
   useEffect(() => {
     if (!isSupabaseConfigured || !eventId) return;
     refresh()
-      .catch((caught) => setError(caught instanceof Error ? caught.message : "读取活动详情失败"))
+      .catch((caught) => setError(friendlyError(caught, "读取活动详情失败，请稍后重试。")))
       .finally(() => setLoading(false));
   }, [eventId]);
+
+  useEffect(() => {
+    if (guildEvent) document.title = `${guildEvent.title}｜八块腹肌工会活动`;
+  }, [guildEvent]);
 
   async function handleSignup() {
     const character = characters.find((item) => item.id === characterId);
@@ -82,9 +119,11 @@ export function EventDetailPage() {
         event_id: eventId,
         character_id: character.id,
         user_id: userId,
-        combat_role: character.combat_role,
-        note: null,
+        combat_role: signupRole,
+        note: signupNote.trim() || null,
+        status: nextSignupStatus,
       });
+      setSignupNote("");
       await refresh();
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
@@ -100,9 +139,10 @@ export function EventDetailPage() {
     setError("");
     try {
       await deleteSignup(mySignup.id);
+      setConfirmingCancel(false);
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "取消报名失败");
+      setError(friendlyError(caught, "取消报名失败，请稍后重试。"));
     } finally {
       setSubmitting(false);
     }
@@ -114,7 +154,55 @@ export function EventDetailPage() {
       await updateSignupStatus(signup.id, status);
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "修改报名状态失败");
+      setError(friendlyError(caught, "修改报名状态失败，请稍后重试。"));
+    }
+  }
+
+  function startEditingEvent() {
+    if (!guildEvent) return;
+    setEventInput({
+      title: guildEvent.title,
+      raid_name: guildEvent.raid_name,
+      starts_at: toDateTimeLocalValue(guildEvent.starts_at),
+      capacity: guildEvent.capacity,
+      description: guildEvent.description,
+      status: guildEvent.status,
+    });
+    setEditingEvent(true);
+  }
+
+  async function handleUpdateEvent(eventSubmit: FormEvent) {
+    eventSubmit.preventDefault();
+    if (!eventInput || submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      validateEventCapacityAgainstRoster(eventInput.capacity, signupSummary.activeCount);
+      await updateEvent(eventId, {
+        ...eventInput,
+        title: eventInput.raid_name.trim(),
+        raid_name: eventInput.raid_name.trim(),
+      });
+      setEditingEvent(false);
+      await refresh();
+    } catch (caught) {
+      setError(friendlyError(caught, "修改活动失败，请稍后重试。"));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleEventStatus(status: EventStatus) {
+    if (submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await updateEvent(eventId, { status });
+      await refresh();
+    } catch (caught) {
+      setError(friendlyError(caught, "修改活动状态失败，请稍后重试。"));
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -124,7 +212,21 @@ export function EventDetailPage() {
 
   return (
     <section className="space-y-4">
-      {error ? <ErrorState message={error} /> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Link className="guild-button-secondary min-h-9 gap-1 px-3 py-1" to={eventsHref}>
+            <ChevronLeft className="h-4 w-4" /> 返回活动列表
+          </Link>
+          <ShareButton title={`${guildEvent.title}｜八块腹肌工会活动`} text={`${formatDateTime(guildEvent.starts_at)} 开团，点击查看阵容并报名。`} />
+          <RosterCopyButton event={guildEvent} signups={signups} />
+        </div>
+        <nav aria-label="页面层级" className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-guild-muted">
+          <Link className="shrink-0 hover:text-guild-gold" to={eventsHref}>活动报名</Link>
+          <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+          <span className="max-w-44 truncate text-guild-ink sm:max-w-80">{guildEvent.title}</span>
+        </nav>
+      </div>
+      {error ? <ErrorState message={error} onRetry={retryRefresh} /> : null}
       <article className="guild-card overflow-hidden p-0">
         <div className="h-36 bg-[linear-gradient(135deg,#BEE7FF,#FFD89A_52%,#FFF0D6)]" />
         <div className="p-4">
@@ -136,8 +238,11 @@ export function EventDetailPage() {
             <StatusBadge>{statusLabel(guildEvent.status)}</StatusBadge>
           </div>
           <p className="mt-3 text-sm text-guild-muted">
-            {formatDateTime(guildEvent.starts_at)} · 上限 {guildEvent.capacity} 人 · {signups.length} 人已报名 · {eventRoleNeeds(signups, guildEvent.capacity)}
+            {formatDateTime(guildEvent.starts_at)} · 上限 {guildEvent.capacity} 人 · {signupSummary.activeCount} 人占位 · {eventRoleNeeds(signups, guildEvent.capacity)}
+            {signupSummary.standbyCount ? ` · 替补 ${signupSummary.standbyCount}` : ""}
+            {signupSummary.leaveCount ? ` · 请假 ${signupSummary.leaveCount}` : ""}
           </p>
+          <p className="mt-2 text-sm font-semibold text-guild-muted">发起人：{guildEvent.creator?.display_name ?? "工会成员"}</p>
           {guildEvent.description ? <p className="mt-3 whitespace-pre-wrap text-sm leading-6">{guildEvent.description}</p> : null}
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-guild-line/70">
             <div className="h-full rounded-full bg-guild-mint" style={{ width: `${composition.percent}%` }} />
@@ -156,6 +261,35 @@ export function EventDetailPage() {
         </div>
       </article>
 
+      {canManageEvent ? (
+        <section className="guild-card grid gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold text-guild-gold">活动管理</p>
+              <h2 className="font-black text-guild-ink">管理我发起的活动</h2>
+            </div>
+            {!editingEvent ? <button className="guild-button-secondary min-h-9 gap-1 px-3 py-1" onClick={startEditingEvent} type="button"><Pencil className="h-3.5 w-3.5" /> 编辑信息</button> : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {guildEvent.status === "open" ? <button className="guild-button-secondary min-h-9 gap-1 px-3 py-1" disabled={submitting} onClick={() => void handleEventStatus("closed")} type="button"><Lock className="h-3.5 w-3.5" /> 锁定报名</button> : null}
+            {guildEvent.status === "closed" || guildEvent.status === "draft" ? <button className="guild-button-secondary min-h-9 gap-1 px-3 py-1" disabled={submitting} onClick={() => void handleEventStatus("open")} type="button"><Unlock className="h-3.5 w-3.5" /> 开放报名</button> : null}
+            {guildEvent.status !== "finished" ? <button className="guild-button-secondary min-h-9 gap-1 px-3 py-1 text-rose-500" disabled={submitting} onClick={() => void handleEventStatus("finished")} type="button"><Flag className="h-3.5 w-3.5" /> 结束活动</button> : null}
+          </div>
+          {editingEvent && eventInput ? (
+            <form className="grid gap-3 border-t border-guild-line pt-3" onSubmit={handleUpdateEvent}>
+              <div className="flex items-center justify-between gap-3"><h3 className="font-bold text-guild-ink">编辑活动</h3><button className="inline-flex items-center gap-1 text-xs font-bold text-guild-muted" onClick={() => setEditingEvent(false)} type="button"><X className="h-3.5 w-3.5" /> 取消</button></div>
+              <Field label="副本/活动名称"><input className="guild-input" maxLength={40} onChange={(event) => setEventInput({ ...eventInput, raid_name: event.target.value, title: event.target.value })} required value={eventInput.raid_name} /></Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="开团时间"><input className="guild-input" onChange={(event) => setEventInput({ ...eventInput, starts_at: event.target.value })} required type="datetime-local" value={eventInput.starts_at} /></Field>
+                <Field label={`人数上限（不少于当前 ${signupSummary.activeCount} 人）`}><input className="guild-input" min={Math.max(1, signupSummary.activeCount)} max={40} onChange={(event) => setEventInput({ ...eventInput, capacity: Number(event.target.value) })} required type="number" value={eventInput.capacity} /></Field>
+              </div>
+              <Field label="活动说明（选填）"><textarea className="guild-input" maxLength={300} onChange={(event) => setEventInput({ ...eventInput, description: event.target.value })} rows={3} value={eventInput.description ?? ""} /></Field>
+              <button className="guild-button" disabled={submitting || !eventInput.raid_name.trim()}>{submitting ? "保存中" : "保存活动修改"}</button>
+            </form>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="overflow-hidden rounded-guild border border-guild-gold/40 bg-[linear-gradient(135deg,#FFF0D6,#FFFFFF_54%,#BEE7FF)] p-4 shadow-glow">
         <div className="flex items-center gap-2">
           <span className="grid h-9 w-9 place-items-center rounded-full bg-guild-gold text-white shadow-soft"><Sparkles className="h-4 w-4" /></span>
@@ -167,7 +301,7 @@ export function EventDetailPage() {
         {!userId ? (
           <div className="mt-4 grid gap-3">
             <ErrorState message="请先登录后再报名。" />
-            <Link className="guild-button text-center" to="/auth">去登录</Link>
+            <Link className="guild-button text-center" to={authPath(`/events/${eventId}${location.search}`)}>去登录</Link>
           </div>
         ) : !characters.length ? (
           <div className="mt-4 grid gap-3">
@@ -188,10 +322,31 @@ export function EventDetailPage() {
               </div>
               <StatusBadge>{mySignup.status}</StatusBadge>
             </div>
-            <p className="mt-3 text-sm font-bold text-emerald-700">你已在本场活动阵容中</p>
-            <button className="guild-button-secondary mt-3 min-h-9" disabled={submitting} onClick={handleCancelSignup} type="button">
-              取消报名
-            </button>
+            <p className={`mt-3 text-sm font-bold ${mySignup.status === "替补" || mySignup.status === "请假" ? "text-guild-muted" : "text-emerald-700"}`}>
+              {mySignup.status === "替补" ? "你当前是替补，团长确认后会更新状态" : mySignup.status === "请假" ? "你已请假，本次不占正式名额" : "你已在本场活动阵容中"}
+            </p>
+            {mySignup.note ? <p className="mt-2 rounded-md bg-guild-panelSoft px-3 py-2 text-sm text-guild-muted">备注：{mySignup.note}</p> : null}
+            {confirmingCancel ? (
+              <div className="mt-3 grid gap-2 rounded-md border border-rose-200 bg-rose-50/80 p-3">
+                <p className="text-sm font-bold text-rose-600">确定取消本场报名吗？取消后席位可能被其他成员补上。</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button className="guild-button min-h-9 bg-rose-500 px-3 py-1 hover:bg-rose-600" disabled={submitting} onClick={() => void handleCancelSignup()} type="button">
+                    {submitting ? "取消中" : "确认取消"}
+                  </button>
+                  <button className="guild-button-secondary min-h-9 px-3 py-1" disabled={submitting} onClick={() => setConfirmingCancel(false)} type="button">保留报名</button>
+                </div>
+              </div>
+            ) : (
+              <button className="guild-button-secondary mt-3 min-h-9" disabled={submitting} onClick={() => setConfirmingCancel(true)} type="button">
+                取消报名
+              </button>
+            )}
+          </div>
+        ) : guildEvent.status !== "open" ? (
+          <div className="mt-4 rounded-md border border-guild-line bg-white/75 p-4 text-center">
+            <Lock className="mx-auto h-5 w-5 text-guild-gold" />
+            <p className="mt-2 font-black text-guild-ink">当前活动已停止报名</p>
+            <p className="mt-1 text-sm text-guild-muted">活动发起人重新开放后即可报名。</p>
           </div>
         ) : (
           <div className="mt-4 grid gap-3">
@@ -206,7 +361,10 @@ export function EventDetailPage() {
                       aria-pressed={selected}
                       className={`flex min-h-16 items-center gap-3 rounded-md border p-3 text-left transition ${selected ? "border-guild-gold bg-guild-panelSoft" : "border-guild-line bg-white/70"}`}
                       key={character.id}
-                      onClick={() => setCharacterId(character.id)}
+                      onClick={() => {
+                        setCharacterId(character.id);
+                        setSignupRole(character.combat_role);
+                      }}
                       type="button"
                     >
                       <CharacterAvatar avatarUrl={character.avatar_url} className="h-10 w-10" name={character.name} positionX={character.avatar_position_x} positionY={character.avatar_position_y} />
@@ -220,10 +378,43 @@ export function EventDetailPage() {
                 })}
               </div>
             </div>
+            <div>
+              <p className="mb-2 text-sm font-bold text-guild-ink">2. 选择本次职责</p>
+              <div aria-label="本次活动职责" className="grid grid-cols-3 gap-2" role="group">
+                {signupRoles.map((role) => {
+                  const Icon = roleIcons[role];
+                  const selected = signupRole === role;
+                  return (
+                    <button
+                      aria-pressed={selected}
+                      className={`flex min-h-12 items-center justify-center gap-1.5 rounded-md border px-2 text-sm font-black transition ${selected ? "border-guild-gold bg-guild-gold text-white shadow-soft" : "border-guild-line bg-white/70 text-guild-muted"}`}
+                      key={role}
+                      onClick={() => setSignupRole(role)}
+                      type="button"
+                    >
+                      <Icon className="h-4 w-4" /> {roleTitles[role]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <details className="rounded-md border border-guild-line bg-white/60 p-3">
+              <summary className="cursor-pointer text-sm font-bold text-guild-muted">补充备注（选填）</summary>
+              <textarea
+                className="guild-input mt-3"
+                maxLength={120}
+                onChange={(event) => setSignupNote(event.target.value)}
+                placeholder="例如：可能晚到 10 分钟、可切治疗"
+                rows={2}
+                value={signupNote}
+              />
+            </details>
             <button className="guild-button min-h-14 text-base" disabled={submitting || !characterId} onClick={() => void handleSignup()} type="button">
-              {submitting ? "报名中" : selectedCharacter ? `立即用 ${selectedCharacter.name} 报名` : "2. 立即报名"}
+              {submitting ? "报名中" : selectedCharacter ? `${nextSignupStatus === "替补" ? "报名替补" : "确认报名"} · ${selectedCharacter.name}` : "确认报名"}
             </button>
-            <p className="text-center text-xs text-guild-muted">报名后可随时取消，团长会在阵容中确认状态。</p>
+            <p className="text-center text-xs text-guild-muted">
+              {nextSignupStatus === "替补" ? "正式名额已满，本次报名将自动进入替补。" : "报名后可随时取消，团长会在阵容中确认状态。"}
+            </p>
           </div>
         )}
       </section>
@@ -258,6 +449,31 @@ export function EventDetailPage() {
           </section>
         ))}
       </div>
+      {deferredSignups.length ? (
+        <section className="guild-card">
+          <SectionTitle title={`替补与请假 ${deferredSignups.length} 人`} />
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {deferredSignups.map((signup) => (
+              <div className="rounded-md bg-white/70 p-3" key={signup.id}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <CharacterAvatar avatarUrl={signup.character?.avatar_url} className="h-8 w-8" name={signup.character?.name ?? "未"} positionX={signup.character?.avatar_position_x} positionY={signup.character?.avatar_position_y} />
+                    <span className="truncate font-semibold text-guild-ink">{signup.character?.name ?? "未知角色"}</span>
+                  </div>
+                  <StatusBadge>{signup.status}</StatusBadge>
+                </div>
+                <p className="mt-1 text-xs text-guild-muted">{signup.character?.class_name ?? "未知职业"} · {roleTitles[signup.combat_role]}</p>
+                {signup.note ? <p className="mt-2 text-sm text-guild-muted">{signup.note}</p> : null}
+                {canManage ? (
+                  <select className="guild-input mt-2 min-h-9 text-sm" value={signup.status} onChange={(event) => void handleStatusChange(signup, event.target.value as SignupStatus)}>
+                    {signupStatuses.map((status) => <option key={status}>{status}</option>)}
+                  </select>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </section>
   );
 }

@@ -6,12 +6,13 @@ import { StatusBadge } from "./StatusBadge";
 
 type ForumPostCardProps = {
   post: Post;
+  search?: string;
 };
 
-export function ForumPostCard({ post }: ForumPostCardProps) {
+export function ForumPostCard({ post, search = "" }: ForumPostCardProps) {
   return (
     <article className="guild-card">
-      <Link to={`/forum/${post.id}`}>
+      <Link to={{ pathname: `/forum/${post.id}`, search }}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="inline-flex items-center gap-1 text-xs font-bold text-guild-gold">

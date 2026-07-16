@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { CalendarPlus, X } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { EventCard } from "../components/EventCard";
@@ -7,13 +8,13 @@ import { Field } from "../components/Field";
 import { LoadingState } from "../components/LoadingState";
 import { SectionTitle } from "../components/SectionTitle";
 import { isSupabaseConfigured } from "../lib/supabase";
-import { getCurrentUser } from "../services/auth";
+import { authPath, getCurrentUser } from "../services/auth";
+import { friendlyError } from "../services/errors";
 import { createEvent, listEvents } from "../services/events";
-import { eventRoleNeeds, isEventToday } from "../services/format";
+import { eventFilterFromValue, eventRoleNeeds, eventViewSearch, isEventToday } from "../services/format";
 import { listSignupsForEvents, signupsByEvent } from "../services/signups";
-import type { EventInput, GuildEvent, Signup } from "../types";
+import { eventFilters, type EventInput, type GuildEvent, type Signup } from "../types";
 
-const filters = ["全部", "报名中", "即将开始", "已结束"] as const;
 const raidPresets = ["TOC+ZUG", "NAXX加双龙", "风暴毒蛇摸奖"] as const;
 const customRaidValue = "自定义";
 
@@ -37,45 +38,70 @@ function initialInput(): EventInput {
 }
 
 export function EventsPage() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [events, setEvents] = useState<GuildEvent[]>([]);
   const [signupMap, setSignupMap] = useState<Record<string, Signup[]>>({});
   const [userId, setUserId] = useState("");
   const [input, setInput] = useState<EventInput>(initialInput);
   const [raidChoice, setRaidChoice] = useState<string>(raidPresets[0]);
   const [creating, setCreating] = useState(false);
-  const [message, setMessage] = useState("");
+  const [eventCreatorOpen, setEventCreatorOpen] = useState(false);
   const [loading, setLoading] = useState(isSupabaseConfigured);
+  const [signupLoading, setSignupLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState("");
-  const [filter, setFilter] = useState<(typeof filters)[number]>("全部");
+  const filter = eventFilterFromValue(searchParams.get("filter"));
+  const eventSearch = eventViewSearch(filter);
   const todayEvents = events.filter((guildEvent) => isEventToday(guildEvent));
 
   const filteredEvents = useMemo(() => {
     return events.filter((guildEvent) => {
       if (filter === "全部") return true;
+      if (filter === "我的报名") {
+        return (signupMap[guildEvent.id] ?? []).some((signup) => signup.user_id === userId && signup.status !== "请假");
+      }
       if (filter === "报名中") return guildEvent.status === "open";
       if (filter === "即将开始") {
         return guildEvent.status !== "finished" && new Date(guildEvent.starts_at).getTime() >= Date.now();
       }
-      if (filter === "已结束") return guildEvent.status === "finished";
       return true;
     });
-  }, [events, filter]);
+  }, [events, filter, signupMap, userId]);
 
   async function refresh() {
-    const eventRows = await listEvents();
+    const [eventRows, user] = await Promise.all([listEvents(), getCurrentUser()]);
     setEvents(eventRows);
+    setUserId(user?.id ?? "");
+    setLoading(false);
 
     const eventIds = eventRows.map((guildEvent) => guildEvent.id);
-    setSignupMap(signupsByEvent(eventIds, await listSignupsForEvents(eventIds)));
+    try {
+      setSignupMap(signupsByEvent(eventIds, await listSignupsForEvents(eventIds)));
+    } catch {
+      setError("活动已读取，但报名阵容暂时未能加载，请稍后刷新。");
+    } finally {
+      setSignupLoading(false);
+    }
+  }
 
-    const user = await getCurrentUser();
-    setUserId(user?.id ?? "");
+  async function retryRefresh() {
+    setError("");
+    setSignupLoading(true);
+    try {
+      await refresh();
+    } catch (caught) {
+      setSignupLoading(false);
+      setError(friendlyError(caught, "读取活动失败，请稍后重试。"));
+    }
   }
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     refresh()
-      .catch((caught) => setError(caught instanceof Error ? caught.message : "读取活动失败"))
+      .catch((caught) => {
+        setError(friendlyError(caught, "读取活动失败，请稍后重试。"));
+        setSignupLoading(false);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -84,9 +110,8 @@ export function EventsPage() {
     if (!userId || creating || !input.raid_name.trim()) return;
     setCreating(true);
     setError("");
-    setMessage("");
     try {
-      await createEvent(userId, {
+      const createdEvent = await createEvent(userId, {
         ...input,
         title: input.raid_name.trim(),
         raid_name: input.raid_name.trim(),
@@ -94,8 +119,8 @@ export function EventsPage() {
       });
       setInput(initialInput());
       setRaidChoice(raidPresets[0]);
-      setMessage("活动已发布，可以开始报名了。");
-      await refresh();
+      setEventCreatorOpen(false);
+      navigate(`/events/${createdEvent.id}`);
     } catch (caught) {
       const detail = caught instanceof Error
         ? caught.message
@@ -103,8 +128,8 @@ export function EventsPage() {
           ? String(caught.message)
           : "";
       setError(/row-level security|permission|42501/i.test(detail)
-        ? "活动创建权限还没有更新，请在 Supabase 执行最新权限 SQL。"
-        : `创建活动失败${detail ? `：${detail}` : "，请刷新页面后再试。"}`);
+        ? "活动创建权限还没有更新，请联系会长完成网站权限设置。"
+        : friendlyError(caught, "创建活动失败，请刷新页面后再试。"));
     } finally {
       setCreating(false);
     }
@@ -115,17 +140,22 @@ export function EventsPage() {
 
   return (
     <section className="space-y-4">
-      <div>
-        <p className="text-sm font-semibold text-guild-muted">开团板</p>
-        <h1 className="text-3xl font-black text-guild-ink">活动报名</h1>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-guild-muted">开团板</p>
+          <h1 className="text-3xl font-black text-guild-ink">活动报名</h1>
+        </div>
+        <button className="guild-button shrink-0 gap-1.5 px-3 sm:px-4" onClick={() => setEventCreatorOpen((current) => !current)} type="button">
+          {eventCreatorOpen ? <X className="h-4 w-4" /> : <CalendarPlus className="h-4 w-4" />}
+          {eventCreatorOpen ? "收起" : "发起活动"}
+        </button>
       </div>
-      {error ? <ErrorState message={error} /> : null}
-      {message ? <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">{message}</p> : null}
+      {error ? <ErrorState message={error} onRetry={retryRefresh} /> : null}
       <section className="space-y-3">
         <SectionTitle eyebrow="TODAY" title="今日活动" />
         {todayEvents.length ? todayEvents.map((guildEvent) => {
-          const signups = signupMap[guildEvent.id] ?? [];
-          return <EventCard event={guildEvent} key={guildEvent.id} prominent roleNeed={eventRoleNeeds(signups, guildEvent.capacity)} signups={signups} signupCount={signups.length} />;
+          const signups = signupMap[guildEvent.id];
+          return <EventCard currentUserId={userId} event={guildEvent} key={guildEvent.id} prominent roleNeed={signups ? eventRoleNeeds(signups, guildEvent.capacity) : undefined} search={eventSearch} signups={signups} signupCount={signups?.length} />;
         }) : (
           <div className="rounded-guild border border-dashed border-guild-line bg-white/55 p-4">
             <p className="font-black text-guild-ink">今天暂无开团</p>
@@ -133,9 +163,15 @@ export function EventsPage() {
           </div>
         )}
       </section>
-      {userId ? (
+      {eventCreatorOpen && userId ? (
         <form className="guild-card grid gap-3" onSubmit={handleSubmit}>
-          <h2 className="font-black text-guild-ink">发起活动</h2>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold text-guild-gold">NEW RAID</p>
+              <h2 className="font-black text-guild-ink">发起活动</h2>
+            </div>
+            <button className="inline-flex items-center gap-1 text-xs font-bold text-guild-muted" onClick={() => setEventCreatorOpen(false)} type="button"><X className="h-3.5 w-3.5" /> 取消</button>
+          </div>
           <Field label="副本/活动">
             <select
               className="guild-input"
@@ -168,7 +204,7 @@ export function EventsPage() {
               <input className="guild-input" type="datetime-local" value={input.starts_at} onChange={(e) => setInput({ ...input, starts_at: e.target.value })} required />
             </Field>
             <Field label="人数上限">
-              <input className="guild-input" type="number" min={1} value={input.capacity} onChange={(e) => setInput({ ...input, capacity: Number(e.target.value) })} required />
+              <input className="guild-input" type="number" min={1} max={40} value={input.capacity} onChange={(e) => setInput({ ...input, capacity: Number(e.target.value) })} required />
             </Field>
           </div>
           <details className="rounded-md border border-guild-line bg-white/60 p-3">
@@ -186,22 +222,22 @@ export function EventsPage() {
             {creating ? "发布中" : `发布 ${input.raid_name || "活动"}`}
           </button>
         </form>
-      ) : (
+      ) : eventCreatorOpen ? (
         <div className="guild-card grid gap-3">
           <ErrorState message="登录后即可发起活动。" />
-          <Link className="guild-button text-center" to="/auth">去登录</Link>
+          <Link className="guild-button text-center" to={authPath(`/events${eventSearch}`)}>去登录</Link>
         </div>
-      )}
+      ) : null}
       <section className="space-y-3">
         <SectionTitle eyebrow="Events" title="活动列表" />
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {filters.map((item) => (
+          {eventFilters.filter((item) => item !== "我的报名" || userId).map((item) => (
             <button
               className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${
                 filter === item ? "bg-guild-gold text-white shadow-soft" : "bg-white/80 text-guild-muted"
               }`}
               key={item}
-              onClick={() => setFilter(item)}
+              onClick={() => setSearchParams(eventViewSearch(item))}
               type="button"
             >
               {item}
@@ -209,15 +245,17 @@ export function EventsPage() {
           ))}
         </div>
         <div className="grid gap-3 md:grid-cols-2">
-          {filteredEvents.length ? filteredEvents.map((guildEvent) => {
-            const signups = signupMap[guildEvent.id] ?? [];
+          {filter === "我的报名" && signupLoading ? <LoadingState /> : filteredEvents.length ? filteredEvents.map((guildEvent) => {
+            const signups = signupMap[guildEvent.id];
             return (
               <EventCard
                 event={guildEvent}
+                currentUserId={userId}
                 key={guildEvent.id}
-                roleNeed={eventRoleNeeds(signups, guildEvent.capacity)}
+                roleNeed={signups ? eventRoleNeeds(signups, guildEvent.capacity) : undefined}
                 signups={signups}
-                signupCount={signups.length}
+                signupCount={signups?.length}
+                search={eventSearch}
               />
             );
           }) : <EmptyState title="暂无活动" description="登录后可以发起第一个工会活动。" />}

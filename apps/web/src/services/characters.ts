@@ -58,7 +58,10 @@ export async function updateCharacter(id: string, input: CharacterInput) {
   return data;
 }
 
-export async function deleteCharacter(id: string) {
+export async function deleteCharacter(id: string, userId?: string, avatarUrl?: string | null) {
   const { error } = await requireSupabase().from("characters").delete().eq("id", id);
   if (error) throw error;
+  if (userId && avatarUrl) {
+    await requireSupabase().storage.from(avatarBucket).remove([`${userId}/${id}.webp`]);
+  }
 }

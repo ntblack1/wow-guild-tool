@@ -7,6 +7,9 @@ export type UserRole = (typeof userRoles)[number];
 export const eventStatuses = ["draft", "open", "closed", "finished"] as const;
 export type EventStatus = (typeof eventStatuses)[number];
 
+export const eventFilters = ["全部", "我的报名", "报名中", "即将开始"] as const;
+export type EventFilter = (typeof eventFilters)[number];
+
 export const signupStatuses = ["已报名", "已确认", "替补", "请假"] as const;
 export type SignupStatus = (typeof signupStatuses)[number];
 
@@ -33,6 +36,12 @@ export type Profile = {
   created_at: string;
   updated_at: string;
 };
+
+export type PublicAuthor = Pick<Profile, "id" | "display_name" | "role">;
+export type ShowcaseProfile = Pick<
+  Profile,
+  "id" | "display_name" | "showcase_image_url" | "showcase_position_x" | "showcase_position_y" | "showcase_caption"
+>;
 
 export type GuildCharacter = {
   id: string;
@@ -61,6 +70,7 @@ export type GuildEvent = {
   created_by: string;
   created_at: string;
   updated_at: string;
+  creator?: Pick<Profile, "id" | "display_name">;
 };
 
 export type Signup = {
@@ -85,7 +95,7 @@ export type Post = {
   is_pinned: boolean;
   created_at: string;
   updated_at: string;
-  author?: Profile;
+  author?: PublicAuthor;
   comment_count?: number;
 };
 
@@ -97,7 +107,7 @@ export type Comment = {
   parent_id: string | null;
   quoted_text: string | null;
   created_at: string;
-  author?: Profile;
+  author?: PublicAuthor;
   parent?: Comment;
 };
 

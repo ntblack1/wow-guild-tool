@@ -1,11 +1,13 @@
-import { ImagePlus } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { ImagePlus, Trash2 } from "lucide-react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import fireMage from "../assets/member-fire-mage.jpg";
 import paladin from "../assets/member-paladin.jpg";
 import priest from "../assets/member-priest.jpg";
 import { getCurrentUser } from "../services/auth";
-import { getProfile, listShowcaseProfiles, updateShowcaseProfile, uploadShowcaseImage } from "../services/profiles";
-import type { Profile } from "../types";
+import { friendlyError } from "../services/errors";
+import { validateImageFile } from "../services/images";
+import { deleteShowcaseImage, getProfile, listShowcaseProfiles, updateShowcaseProfile, uploadShowcaseImage } from "../services/profiles";
+import type { Profile, ShowcaseProfile } from "../types";
 import { ErrorState } from "./ErrorState";
 import { Field } from "./Field";
 import { SectionTitle } from "./SectionTitle";
@@ -17,7 +19,7 @@ const defaultMembers = [
 ];
 
 export function GuildMemberShowcase() {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<ShowcaseProfile[]>([]);
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
@@ -25,14 +27,17 @@ export function GuildMemberShowcase() {
   const [positionY, setPositionY] = useState(50);
   const [caption, setCaption] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   async function refresh() {
-    const rows = await listShowcaseProfiles(12);
+    const [rows, user] = await Promise.all([listShowcaseProfiles(12), getCurrentUser()]);
     setProfiles(rows);
-    const user = await getCurrentUser();
-    if (!user) return;
+    if (!user) {
+      setCurrentProfile(null);
+      return;
+    }
     const profile = await getProfile(user.id);
     setCurrentProfile(profile);
     setPositionX(profile?.showcase_position_x ?? 50);
@@ -72,10 +77,52 @@ export function GuildMemberShowcase() {
         showcase_caption: caption.trim(),
       });
       setFile(null);
+      setConfirmingDelete(false);
       setMessage("成员展示图已更新。");
       await refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "上传失败，请稍后再试。");
+      setError(friendlyError(caught, "上传失败，请稍后再试。"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const selected = event.target.files?.[0] ?? null;
+    setError("");
+    setMessage("");
+    if (!selected) {
+      setFile(null);
+      return;
+    }
+    try {
+      validateImageFile(selected);
+      setFile(selected);
+      setConfirmingDelete(false);
+    } catch (caught) {
+      setFile(null);
+      event.target.value = "";
+      setError(friendlyError(caught, "图片不符合上传要求。"));
+    }
+  }
+
+  async function handleDelete() {
+    if (!currentProfile?.showcase_image_url || saving) return;
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      await deleteShowcaseImage(currentProfile.id);
+      setFile(null);
+      setPreview("");
+      setPositionX(50);
+      setPositionY(50);
+      setCaption("");
+      setConfirmingDelete(false);
+      setMessage("展示图已撤下。");
+      await refresh();
+    } catch (caught) {
+      setError(friendlyError(caught, "撤下图片失败，请稍后再试。"));
     } finally {
       setSaving(false);
     }
@@ -107,13 +154,25 @@ export function GuildMemberShowcase() {
             <div className="grid content-start gap-3">
               <label className="guild-button-secondary cursor-pointer">
                 选择图片
-                <input accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => setFile(event.target.files?.[0] ?? null)} type="file" />
+                <input accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleFileChange} type="file" />
               </label>
               <p className="text-xs text-guild-muted">支持 JPG、PNG、WebP；原图不超过 8MB，上传前自动压缩到 1.5MB 内。</p>
               <Field label={`左右位置 ${positionX}%`}><input className="w-full accent-guild-gold" max={100} min={0} onChange={(event) => setPositionX(Number(event.target.value))} type="range" value={positionX} /></Field>
               <Field label={`上下位置 ${positionY}%`}><input className="w-full accent-guild-gold" max={100} min={0} onChange={(event) => setPositionY(Number(event.target.value))} type="range" value={positionY} /></Field>
               <Field label="展示说明（选填）"><input className="guild-input" maxLength={40} onChange={(event) => setCaption(event.target.value)} placeholder="例如：圣骑士 · 防护" value={caption} /></Field>
               <button className="guild-button" disabled={saving}>{saving ? "处理中" : "保存到成员展示"}</button>
+              {currentProfile.showcase_image_url ? (
+                confirmingDelete ? (
+                  <div className="flex gap-2">
+                    <button className="guild-button min-h-10 flex-1 bg-rose-500 hover:bg-rose-600" disabled={saving} onClick={() => void handleDelete()} type="button">确认撤下</button>
+                    <button className="guild-button-secondary min-h-10 flex-1" onClick={() => setConfirmingDelete(false)} type="button">取消</button>
+                  </div>
+                ) : (
+                  <button className="inline-flex min-h-10 items-center justify-center gap-1 text-sm font-bold text-rose-500" onClick={() => setConfirmingDelete(true)} type="button">
+                    <Trash2 className="h-4 w-4" /> 撤下我的展示图
+                  </button>
+                )
+              ) : null}
               {message ? <p className="text-sm font-bold text-emerald-700">{message}</p> : null}
               {error ? <ErrorState message={error} /> : null}
             </div>

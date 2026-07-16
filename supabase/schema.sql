@@ -62,8 +62,6 @@ create table if not exists public.posts (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   body text not null,
-  parent_id uuid references public.comments(id) on delete set null,
-  quoted_text text,
   category text not null check (category in ('开团通知', '副本攻略', '插件宏区', '装备交易', '吐槽大会', '战报区')),
   author_id uuid not null references public.profiles(id) on delete cascade,
   is_pinned boolean not null default false,
@@ -76,6 +74,8 @@ create table if not exists public.comments (
   post_id uuid not null references public.posts(id) on delete cascade,
   author_id uuid not null references public.profiles(id) on delete cascade,
   body text not null,
+  parent_id uuid references public.comments(id) on delete set null,
+  quoted_text text,
   created_at timestamptz not null default now()
 );
 
@@ -126,6 +126,32 @@ alter table public.comments add column if not exists quoted_text text;
 create index if not exists characters_user_id_idx on public.characters(user_id);
 create index if not exists events_starts_at_idx on public.events(starts_at);
 create index if not exists signups_event_id_idx on public.signups(event_id);
+
+-- Keep one deterministic signup per member before enforcing the account-level slot rule.
+with ranked_event_signups as (
+  select
+    id,
+    row_number() over (
+      partition by event_id, user_id
+      order by
+        case status
+          when '已确认' then 1
+          when '已报名' then 2
+          when '替补' then 3
+          when '请假' then 4
+          else 5
+        end,
+        created_at asc,
+        id asc
+    ) as duplicate_rank
+  from public.signups
+)
+delete from public.signups
+using ranked_event_signups
+where public.signups.id = ranked_event_signups.id
+  and ranked_event_signups.duplicate_rank > 1;
+
+create unique index if not exists signups_event_user_unique_idx on public.signups(event_id, user_id);
 create index if not exists posts_pinned_created_idx on public.posts(is_pinned desc, created_at desc);
 create index if not exists comments_post_id_idx on public.comments(post_id);
 create index if not exists comments_parent_id_idx on public.comments(parent_id);
@@ -288,6 +314,7 @@ drop policy if exists "guild users update events" on public.events;
 drop policy if exists "managers create events" on public.events;
 drop policy if exists "members create events" on public.events;
 drop policy if exists "managers update events" on public.events;
+drop policy if exists "creators update own events" on public.events;
 drop policy if exists "signups readable" on public.signups;
 drop policy if exists "users create own signups" on public.signups;
 drop policy if exists "guild users create signups" on public.signups;
@@ -303,6 +330,8 @@ drop policy if exists "guild users create posts" on public.posts;
 drop policy if exists "users or admins update posts" on public.posts;
 drop policy if exists "guild users update posts" on public.posts;
 drop policy if exists "managers update posts" on public.posts;
+drop policy if exists "authors update own unpinned posts" on public.posts;
+drop policy if exists "authors or managers delete posts" on public.posts;
 drop policy if exists "comments readable" on public.comments;
 drop policy if exists "users create own comments" on public.comments;
 drop policy if exists "guild users create comments" on public.comments;
@@ -314,6 +343,7 @@ drop policy if exists "admins update reports" on public.reports;
 drop policy if exists "guild users update reports" on public.reports;
 drop policy if exists "managers create reports" on public.reports;
 drop policy if exists "managers update reports" on public.reports;
+drop policy if exists "managers delete reports" on public.reports;
 
 create policy "profiles readable" on public.profiles
 for select to anon, authenticated using (true);
@@ -347,6 +377,11 @@ for update to authenticated
 using (public.is_guild_manager())
 with check (public.is_guild_manager());
 
+create policy "creators update own events" on public.events
+for update to authenticated
+using (created_by = auth.uid())
+with check (created_by = auth.uid());
+
 create policy "signups readable" on public.signups
 for select to anon, authenticated using (true);
 
@@ -354,6 +389,7 @@ create policy "users create own signups" on public.signups
 for insert to authenticated
 with check (
   user_id = auth.uid()
+  and status in ('已报名', '替补')
   and exists (
     select 1 from public.characters
     where characters.id = character_id and characters.user_id = auth.uid()
@@ -384,6 +420,15 @@ for update to authenticated
 using (public.is_guild_manager())
 with check (public.is_guild_manager());
 
+create policy "authors update own unpinned posts" on public.posts
+for update to authenticated
+using (author_id = auth.uid() and is_pinned = false)
+with check (author_id = auth.uid() and is_pinned = false);
+
+create policy "authors or managers delete posts" on public.posts
+for delete to authenticated
+using (author_id = auth.uid() or public.is_guild_manager());
+
 create policy "comments readable" on public.comments
 for select to anon, authenticated using (true);
 
@@ -404,6 +449,10 @@ create policy "managers update reports" on public.reports
 for update to authenticated
 using (public.is_guild_manager())
 with check (public.is_guild_manager());
+
+create policy "managers delete reports" on public.reports
+for delete to authenticated
+using (public.is_guild_manager());
 
 -- A member may rename their profile, but role changes remain SQL-admin only.
 revoke insert, delete on public.profiles from anon, authenticated;

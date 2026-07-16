@@ -4,6 +4,8 @@ import test from "node:test";
 
 const schemaUrl = new URL("../supabase/schema.sql", import.meta.url);
 const schema = await readFile(schemaUrl, "utf8");
+const contentMigrationUrl = new URL("../supabase/migrations/20260717_forum_content_management.sql", import.meta.url);
+const contentMigration = await readFile(contentMigrationUrl, "utf8");
 
 test("Supabase schema delegates credentials to Supabase Auth", () => {
   assert.doesNotMatch(schema, /create table if not exists public\.guild_accounts/i);
@@ -27,4 +29,36 @@ test("every created RLS policy is dropped first so the schema can be rerun", () 
   for (const policy of createdPolicies) {
     assert.match(schema, new RegExp(`drop policy if exists "${policy}"`));
   }
+});
+
+test("forum reply fields belong to comments in a clean database", () => {
+  const postsTable = schema.match(/create table if not exists public\.posts \(([\s\S]*?)\n\);/i)?.[1] ?? "";
+  const commentsTable = schema.match(/create table if not exists public\.comments \(([\s\S]*?)\n\);/i)?.[1] ?? "";
+
+  assert.doesNotMatch(postsTable, /\b(parent_id|quoted_text)\b/i);
+  assert.match(commentsTable, /parent_id uuid references public\.comments\(id\) on delete set null/i);
+  assert.match(commentsTable, /quoted_text text/i);
+});
+
+test("one guild member occupies only one signup slot per event", () => {
+  for (const sql of [schema, contentMigration]) {
+    const cleanupPosition = sql.indexOf("with ranked_event_signups as");
+    const indexPosition = sql.indexOf("create unique index if not exists signups_event_user_unique_idx");
+    assert.ok(cleanupPosition >= 0 && cleanupPosition < indexPosition);
+    assert.match(sql, /partition by event_id, user_id/i);
+    assert.match(sql, /when '已确认' then 1/i);
+    assert.match(sql, /duplicate_rank > 1/i);
+  }
+});
+
+test("members cannot confirm their own signup during insertion", () => {
+  for (const sql of [schema, contentMigration]) {
+    assert.match(sql, /create policy "users create own signups"[\s\S]*status in \('已报名', '替补'\)/i);
+    assert.match(sql, /characters\.id = character_id and characters\.user_id = auth\.uid\(\)/i);
+    assert.match(sql, /events\.id = event_id and events\.status = 'open'/i);
+  }
+});
+
+test("only guild managers can delete raid reports", () => {
+  assert.match(schema, /create policy "managers delete reports"[\s\S]*for delete to authenticated[\s\S]*public\.is_guild_manager\(\)/i);
 });

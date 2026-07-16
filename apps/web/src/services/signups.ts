@@ -38,10 +38,11 @@ export async function createSignup(input: {
   user_id: string;
   combat_role: CombatRole;
   note: string | null;
+  status?: SignupStatus;
 }) {
   const { data, error } = await requireSupabase()
     .from("signups")
-    .insert({ ...input, status: "已报名" satisfies SignupStatus })
+    .insert({ ...input, status: input.status ?? ("已报名" satisfies SignupStatus) })
     .select()
     .single<Signup>();
 

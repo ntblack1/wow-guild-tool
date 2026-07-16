@@ -8,6 +8,7 @@ const usernamePattern = /^[a-z0-9_]{3,20}$/;
 export type GuildSessionUser = {
   id: string;
   displayName: string;
+  username: string;
 };
 
 export function normalizeUsername(username: string) {
@@ -18,9 +19,23 @@ export function accountEmail(username: string) {
   return `${normalizeUsername(username)}@${guildAccountEmailDomain}`;
 }
 
+export function safeAuthNextPath(value: string | null) {
+  if (!value || value.startsWith("//")) return "";
+  const allowedRoots = ["/events", "/forum", "/characters", "/reports"];
+  return allowedRoots.some((root) => value === root || value.startsWith(`${root}/`) || value.startsWith(`${root}?`))
+    ? value
+    : "";
+}
+
+export function authPath(nextPath = "") {
+  const safeNextPath = safeAuthNextPath(nextPath);
+  return safeNextPath ? `/auth?next=${encodeURIComponent(safeNextPath)}` : "/auth";
+}
+
 function sessionUser(user: User): GuildSessionUser {
   const displayName = user.user_metadata?.display_name;
   const username = user.user_metadata?.username;
+  const emailUsername = user.email?.endsWith(`@${guildAccountEmailDomain}`) ? user.email.split("@")[0] : "";
 
   return {
     id: user.id,
@@ -28,6 +43,7 @@ function sessionUser(user: User): GuildSessionUser {
       (typeof displayName === "string" && displayName.trim()) ||
       (typeof username === "string" && username.trim()) ||
       "八块腹肌成员",
+    username: (typeof username === "string" && username.trim()) || emailUsername || "",
   };
 }
 
@@ -115,6 +131,35 @@ export async function signInWithGuildAccount(usernameInput: string, password: st
 
   if (error) throw friendlyAuthError(error.message, "login");
   return sessionUser(data.user);
+}
+
+export async function updateGuildDisplayName(displayNameInput: string) {
+  const displayName = displayNameInput.trim();
+  if (!displayName) throw new Error("请填写工会昵称。");
+  if (displayName.length > 20) throw new Error("工会昵称最多 20 个字。");
+
+  const client = requireSupabase();
+  const { data, error } = await client.auth.updateUser({ data: { display_name: displayName } });
+  if (error) throw friendlyAuthError(error.message, "login");
+
+  const { error: profileError } = await client
+    .from("profiles")
+    .update({ display_name: displayName })
+    .eq("id", data.user.id);
+  if (profileError) throw new Error("昵称保存失败，请稍后再试。");
+
+  return sessionUser(data.user);
+}
+
+export async function updateGuildPassword(password: string) {
+  if (password.length < 6) throw new Error("密码至少需要 6 位。");
+  const { error } = await requireSupabase().auth.updateUser({ password });
+  if (error) {
+    if (/same password|different from.*old|new password should be different/i.test(error.message)) {
+      throw new Error("新密码不能和原密码相同。");
+    }
+    throw friendlyAuthError(error.message, "login");
+  }
 }
 
 export async function signOut() {

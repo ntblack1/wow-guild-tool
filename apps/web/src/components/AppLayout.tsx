@@ -1,8 +1,9 @@
 import { CalendarDays, Home, MessageCircle, ScrollText, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { getCurrentUser, subscribeToAuthChanges, type GuildSessionUser } from "../services/auth";
+import { OfflineBanner } from "./OfflineBanner";
 
 const navItems = [
   { to: "/", label: "大厅", icon: Home },
@@ -14,12 +15,27 @@ const navItems = [
 
 export function AppLayout() {
   const [currentUser, setCurrentUser] = useState<GuildSessionUser | null>(null);
+  const location = useLocation();
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     getCurrentUser().then(setCurrentUser).catch(() => setCurrentUser(null));
     return subscribeToAuthChanges(setCurrentUser);
   }, []);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+    const path = location.pathname;
+    const pageName = path.startsWith("/events/") ? "活动详情"
+      : path === "/events" ? "活动报名"
+        : path.startsWith("/forum/") ? "帖子详情"
+          : path === "/forum" ? "工会论坛"
+            : path === "/characters" ? "我的角色"
+              : path === "/reports" ? "副本战报"
+                : path === "/auth" ? "账号中心"
+                  : "工会大厅";
+    document.title = `${pageName}｜八块腹肌工会`;
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen pb-24 text-guild-ink md:pb-0">
@@ -52,6 +68,7 @@ export function AppLayout() {
           ))}
         </nav>
       </header>
+      <OfflineBanner />
       <main className="mx-auto max-w-5xl px-4 py-5">
         <Outlet />
       </main>

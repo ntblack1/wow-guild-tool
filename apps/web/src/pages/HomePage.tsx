@@ -10,47 +10,73 @@ import { NoticeCard } from "../components/NoticeCard";
 import { RankCard } from "../components/RankCard";
 import { SectionTitle } from "../components/SectionTitle";
 import { isSupabaseConfigured } from "../lib/supabase";
+import { getCurrentUser } from "../services/auth";
 import { listHomepageEvents } from "../services/events";
 import { isEventToday, nextEvent } from "../services/format";
-import { listPosts } from "../services/posts";
+import { listPosts, selectHomepageNotice } from "../services/posts";
+import { listReports } from "../services/reports";
 import { listSignupsForEvents, signupsByEvent } from "../services/signups";
-import type { GuildEvent, Post, Signup } from "../types";
+import type { GuildEvent, Post, Report, Signup } from "../types";
 
 const GuildMemberShowcase = lazy(() => import("../components/GuildMemberShowcase").then((module) => ({ default: module.GuildMemberShowcase })));
 
 export function HomePage() {
   const [events, setEvents] = useState<GuildEvent[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [latestReport, setLatestReport] = useState<Report | null>(null);
   const [signupMap, setSignupMap] = useState<Record<string, Signup[]>>({});
+  const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState("");
   const todayEvents = events.filter((event) => isEventToday(event));
   const featuredEvent = todayEvents[0] ?? nextEvent(events);
+  const notice = selectHomepageNotice(posts);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
-    Promise.all([listHomepageEvents(6), listPosts(3)])
-      .then(async ([eventRows, postRows]) => {
-        const today = eventRows.find((event) => isEventToday(event));
-        const featured = today ?? nextEvent(eventRows);
-        const eventIds = [...new Set([featured?.id, ...eventRows.slice(0, 3).map((event) => event.id)].filter((id): id is string => Boolean(id)))];
+    async function loadHome() {
+      const [eventResult, postResult, reportResult, userResult] = await Promise.allSettled([
+        listHomepageEvents(6),
+        listPosts(3),
+        listReports(1),
+        getCurrentUser(),
+      ]);
+      const eventRows = eventResult.status === "fulfilled" ? eventResult.value : [];
+      const postRows = postResult.status === "fulfilled" ? postResult.value : [];
+      const reportRows = reportResult.status === "fulfilled" ? reportResult.value : [];
+      const user = userResult.status === "fulfilled" ? userResult.value : null;
+      setEvents(eventRows);
+      setPosts(postRows);
+      setLatestReport(reportRows[0] ?? null);
+      setUserId(user?.id ?? "");
+
+      if ([eventResult, postResult, reportResult].some((result) => result.status === "rejected")) {
+        setError("部分大厅内容暂时未能读取，可以继续使用其他功能。");
+      }
+      setLoading(false);
+
+      const today = eventRows.find((event) => isEventToday(event));
+      const featured = today ?? nextEvent(eventRows);
+      const eventIds = [...new Set([featured?.id, ...eventRows.slice(0, 3).map((event) => event.id)].filter((id): id is string => Boolean(id)))];
+      try {
         const signupRows = await listSignupsForEvents(eventIds);
-        setEvents(eventRows);
-        setPosts(postRows);
         setSignupMap(signupsByEvent(eventIds, signupRows));
-      })
-      .catch((caught) => setError(caught instanceof Error ? caught.message : "读取失败"))
-      .finally(() => setLoading(false));
+      } catch {
+        setError("报名阵容暂时未能读取，活动和其他功能仍可正常使用。");
+      }
+    }
+
+    void loadHome();
   }, []);
 
   return (
     <section className="space-y-5">
-      <HeroBanner />
-
       <section className="space-y-3">
         <SectionTitle eyebrow={todayEvents.length ? "TODAY" : "NEXT RAID"} title={todayEvents.length ? "今日活动" : "下一场活动"} />
-        {featuredEvent ? (
-          <EventCard event={featuredEvent} key={featuredEvent.id} prominent signups={signupMap[featuredEvent.id] ?? []} />
+        {loading ? (
+          <LoadingState />
+        ) : featuredEvent ? (
+          <EventCard currentUserId={userId} event={featuredEvent} key={featuredEvent.id} prominent signups={signupMap[featuredEvent.id]} />
         ) : (
           <Link className="block rounded-guild border border-dashed border-guild-gold/60 bg-guild-panelSoft p-4 text-guild-ink" to="/events">
             <p className="font-black">今天还没有活动</p>
@@ -78,26 +104,26 @@ export function HomePage() {
         </Link>
       </div>
 
+      <HeroBanner />
+
       {!isSupabaseConfigured ? (
         <ErrorState message="当前是未配置 Supabase 的本地界面预览。填写环境变量后会读取真实活动和帖子。" />
       ) : null}
       {error ? <ErrorState message={error} /> : null}
-      {loading ? <LoadingState /> : null}
-
       <DeferredSection minHeight={360}>
         <Suspense fallback={<LoadingState />}><GuildMemberShowcase /></Suspense>
       </DeferredSection>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <NoticeCard />
-        <RankCard />
+        <NoticeCard post={notice} />
+        <RankCard report={latestReport} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className="space-y-3">
           <SectionTitle eyebrow="Today" title="最近活动" />
           {events.length ? (
-            events.slice(0, 3).map((event) => <EventCard event={event} key={event.id} signups={signupMap[event.id] ?? []} />)
+            events.slice(0, 3).map((event) => <EventCard currentUserId={userId} event={event} key={event.id} signups={signupMap[event.id]} />)
           ) : (
             <EmptyState title="暂无活动" description="等团长发布第一场活动。" />
           )}
