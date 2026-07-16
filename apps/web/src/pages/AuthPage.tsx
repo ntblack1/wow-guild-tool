@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { CalendarDays, KeyRound, LogOut, Save, ShieldCheck, UserRound } from "lucide-react";
+import { CalendarDays, Eye, EyeOff, KeyRound, LogOut, Save, ShieldCheck, UserRound } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ErrorState } from "../components/ErrorState";
 import { Field } from "../components/Field";
@@ -20,6 +20,26 @@ import { userRoleLabel } from "../services/format";
 import { getProfile } from "../services/profiles";
 import type { UserRole } from "../types";
 
+type PasswordVisibilityButtonProps = {
+  visible: boolean;
+  onToggle: () => void;
+};
+
+function PasswordVisibilityButton({ visible, onToggle }: PasswordVisibilityButtonProps) {
+  const Icon = visible ? EyeOff : Eye;
+  return (
+    <button
+      aria-pressed={visible}
+      className="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-guild-goldSoft"
+      onClick={onToggle}
+      type="button"
+    >
+      <Icon aria-hidden="true" className="h-4 w-4" />
+      {visible ? "隐藏密码" : "显示密码"}
+    </button>
+  );
+}
+
 export function AuthPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -36,6 +56,9 @@ export function AuthPage() {
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showAccountPassword, setShowAccountPassword] = useState(false);
   const [passphrasePassed, setPassphrasePassed] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -219,7 +242,7 @@ export function AuthPage() {
           </div>
           <form className="grid gap-2" onSubmit={handleDisplayNameUpdate}>
             <Field label="工会昵称">
-              <input className="guild-input" maxLength={20} onChange={(event) => setAccountDisplayName(event.target.value)} required value={accountDisplayName} />
+              <input autoComplete="nickname" className="guild-input" maxLength={20} name="nickname" onChange={(event) => setAccountDisplayName(event.target.value)} required value={accountDisplayName} />
             </Field>
             <button className="guild-button-secondary gap-1.5" disabled={saving || !accountDisplayName.trim() || accountDisplayName.trim() === currentUser.displayName}>
               <Save className="h-4 w-4" /> 保存昵称
@@ -231,11 +254,12 @@ export function AuthPage() {
             </summary>
             <form className="mt-3 grid gap-3" onSubmit={handlePasswordUpdate}>
               <Field label="新密码">
-                <input className="guild-input" autoComplete="new-password" minLength={6} onChange={(event) => setAccountPassword(event.target.value)} required type="password" value={accountPassword} />
+                <input className="guild-input" autoComplete="new-password" minLength={6} name="new-password" onChange={(event) => setAccountPassword(event.target.value)} required type={showAccountPassword ? "text" : "password"} value={accountPassword} />
               </Field>
               <Field label="再次输入新密码">
-                <input className="guild-input" autoComplete="new-password" minLength={6} onChange={(event) => setAccountPasswordConfirm(event.target.value)} required type="password" value={accountPasswordConfirm} />
+                <input className="guild-input" autoComplete="new-password" minLength={6} name="confirm-password" onChange={(event) => setAccountPasswordConfirm(event.target.value)} required type={showAccountPassword ? "text" : "password"} value={accountPasswordConfirm} />
               </Field>
+              <PasswordVisibilityButton visible={showAccountPassword} onToggle={() => setShowAccountPassword((current) => !current)} />
               <button className="guild-button-secondary gap-1.5" disabled={saving || accountPassword.length < 6 || accountPasswordConfirm.length < 6}>
                 <KeyRound className="h-4 w-4" /> 保存新密码
               </button>
@@ -257,25 +281,32 @@ export function AuthPage() {
               <input
                 className="guild-input"
                 autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
                 maxLength={20}
+                name="username"
                 value={loginUsername}
                 onChange={(event) => setLoginUsername(event.target.value)}
                 placeholder="输入你的账号"
                 required
+                spellCheck={false}
               />
             </Field>
             <Field label="密码">
               <input
                 className="guild-input"
                 autoComplete="current-password"
-                type="password"
+                enterKeyHint="go"
                 minLength={6}
+                name="password"
+                type={showLoginPassword ? "text" : "password"}
                 value={loginPassword}
                 onChange={(event) => setLoginPassword(event.target.value)}
                 placeholder="输入密码"
                 required
               />
             </Field>
+            <PasswordVisibilityButton visible={showLoginPassword} onToggle={() => setShowLoginPassword((current) => !current)} />
             <button className="guild-button w-full" disabled={saving}>
               {saving ? "处理中" : "登录"}
             </button>
@@ -287,7 +318,9 @@ export function AuthPage() {
               <Field label="会长口头禅是什么？">
                 <input
                   className="guild-input"
+                  autoComplete="off"
                   maxLength={20}
+                  name="guild-passphrase"
                   value={answer}
                   onChange={(event) => setAnswer(event.target.value)}
                   placeholder="输入工会口令"
@@ -302,7 +335,9 @@ export function AuthPage() {
               <Field label="工会昵称">
                 <input
                   className="guild-input"
+                  autoComplete="nickname"
                   maxLength={20}
+                  name="nickname"
                   value={displayName}
                   onChange={(event) => setDisplayName(event.target.value)}
                   placeholder="例如：老冻人民"
@@ -314,19 +349,23 @@ export function AuthPage() {
                   className="guild-input"
                   autoCapitalize="none"
                   autoComplete="username"
+                  autoCorrect="off"
                   maxLength={20}
+                  name="username"
                   value={newUsername}
                   onChange={(event) => setNewUsername(event.target.value)}
                   placeholder="3-20 位字母、数字或下划线"
                   required
+                  spellCheck={false}
                 />
               </Field>
               <Field label="密码">
                 <input
                   className="guild-input"
                   autoComplete="new-password"
-                  type="password"
                   minLength={6}
+                  name="new-password"
+                  type={showNewPassword ? "text" : "password"}
                   value={newPassword}
                   onChange={(event) => setNewPassword(event.target.value)}
                   placeholder="至少 6 位"
@@ -337,14 +376,17 @@ export function AuthPage() {
                 <input
                   className="guild-input"
                   autoComplete="new-password"
-                  type="password"
+                  enterKeyHint="done"
                   minLength={6}
+                  name="confirm-password"
+                  type={showNewPassword ? "text" : "password"}
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
                   placeholder="再输入一次密码"
                   required
                 />
               </Field>
+              <PasswordVisibilityButton visible={showNewPassword} onToggle={() => setShowNewPassword((current) => !current)} />
               <button className="guild-button w-full" disabled={saving}>
                 {saving ? "创建中" : "创建账号并登录"}
               </button>

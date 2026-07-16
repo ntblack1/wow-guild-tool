@@ -51,6 +51,7 @@ export function EventDetailPage() {
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [submitting, setSubmitting] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [confirmingFinish, setConfirmingFinish] = useState(false);
   const [editingEvent, setEditingEvent] = useState(false);
   const [eventInput, setEventInput] = useState<EventInput | null>(null);
   const [error, setError] = useState("");
@@ -161,6 +162,7 @@ export function EventDetailPage() {
 
   function startEditingEvent() {
     if (!guildEvent) return;
+    setConfirmingFinish(false);
     setEventInput({
       title: guildEvent.title,
       raid_name: guildEvent.raid_name,
@@ -199,6 +201,7 @@ export function EventDetailPage() {
     setError("");
     try {
       await updateEvent(eventId, { status });
+      setConfirmingFinish(false);
       await refresh();
     } catch (caught) {
       setError(friendlyError(caught, "修改活动状态失败，请稍后重试。"));
@@ -277,13 +280,26 @@ export function EventDetailPage() {
               <p className="text-xs font-bold text-guild-gold">活动管理</p>
               <h2 className="font-black text-guild-ink">管理我发起的活动</h2>
             </div>
-            {!editingEvent ? <button className="guild-button-secondary min-h-9 gap-1 px-3 py-1" onClick={startEditingEvent} type="button"><Pencil className="h-3.5 w-3.5" /> 编辑信息</button> : null}
+            {!editingEvent && guildEvent.status !== "finished" ? <button className="guild-button-secondary min-h-9 gap-1 px-3 py-1" onClick={startEditingEvent} type="button"><Pencil className="h-3.5 w-3.5" /> 编辑信息</button> : null}
           </div>
           <div className="flex flex-wrap gap-2">
-            {guildEvent.status === "open" ? <button className="guild-button-secondary min-h-9 gap-1 px-3 py-1" disabled={submitting} onClick={() => void handleEventStatus("closed")} type="button"><Lock className="h-3.5 w-3.5" /> 锁定报名</button> : null}
-            {guildEvent.status === "closed" || guildEvent.status === "draft" ? <button className="guild-button-secondary min-h-9 gap-1 px-3 py-1" disabled={submitting} onClick={() => void handleEventStatus("open")} type="button"><Unlock className="h-3.5 w-3.5" /> 开放报名</button> : null}
-            {guildEvent.status !== "finished" ? <button className="guild-button-secondary min-h-9 gap-1 px-3 py-1 text-rose-500" disabled={submitting} onClick={() => void handleEventStatus("finished")} type="button"><Flag className="h-3.5 w-3.5" /> 结束活动</button> : null}
+            {guildEvent.status === "open" ? <button className="guild-button-secondary min-h-9 gap-1 px-3 py-1" disabled={submitting} onClick={() => { setConfirmingFinish(false); void handleEventStatus("closed"); }} type="button"><Lock className="h-3.5 w-3.5" /> 锁定报名</button> : null}
+            {guildEvent.status === "closed" || guildEvent.status === "draft" ? <button className="guild-button-secondary min-h-9 gap-1 px-3 py-1" disabled={submitting} onClick={() => { setConfirmingFinish(false); void handleEventStatus("open"); }} type="button"><Unlock className="h-3.5 w-3.5" /> 开放报名</button> : null}
+            {guildEvent.status !== "finished" && !confirmingFinish ? <button className="guild-button-secondary min-h-9 gap-1 px-3 py-1 text-rose-500" disabled={submitting} onClick={() => setConfirmingFinish(true)} type="button"><Flag className="h-3.5 w-3.5" /> 结束活动</button> : null}
           </div>
+          {guildEvent.status === "finished" ? <p className="rounded-md border border-guild-line bg-guild-panelSoft p-3 text-sm font-bold text-guild-muted">活动已结束，报名阵容和分享链接仍可查看。</p> : null}
+          {confirmingFinish ? (
+            <div className="grid gap-3 rounded-md border border-rose-200 bg-rose-50/80 p-3">
+              <div>
+                <p className="font-black text-rose-700">确认结束这场活动？</p>
+                <p className="mt-1 text-sm text-rose-600">结束后会停止报名，并立即从活动列表隐藏。</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button className="guild-button-secondary" disabled={submitting} onClick={() => setConfirmingFinish(false)} type="button">暂不结束</button>
+                <button className="guild-button bg-rose-600" disabled={submitting} onClick={() => void handleEventStatus("finished")} type="button">{submitting ? "处理中" : "确认结束"}</button>
+              </div>
+            </div>
+          ) : null}
           {editingEvent && eventInput ? (
             <form className="grid gap-3 border-t border-guild-line pt-3" onSubmit={handleUpdateEvent}>
               <div className="flex items-center justify-between gap-3"><h3 className="font-bold text-guild-ink">编辑活动</h3><button className="inline-flex items-center gap-1 text-xs font-bold text-guild-muted" onClick={() => setEditingEvent(false)} type="button"><X className="h-3.5 w-3.5" /> 取消</button></div>
