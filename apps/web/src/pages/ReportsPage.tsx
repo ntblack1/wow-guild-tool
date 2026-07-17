@@ -6,6 +6,7 @@ import { Field } from "../components/Field";
 import { GuildCard } from "../components/GuildCard";
 import { LoadingState } from "../components/LoadingState";
 import { SectionTitle } from "../components/SectionTitle";
+import { WclFunBriefs } from "../components/WclFunBriefs";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { getCurrentUser } from "../services/auth";
 import { friendlyError } from "../services/errors";
@@ -196,6 +197,8 @@ export function ReportsPage() {
           <button className="guild-button" disabled={saving || !input.title.trim() || !input.content.trim()}>{saving ? "保存中" : editingId ? "保存修改" : "发布战报"}</button>
         </form>
       ) : null}
+
+      <WclFunBriefs />
 
       <section className="space-y-3">
         <SectionTitle eyebrow="Reports" title="历史战报" />
