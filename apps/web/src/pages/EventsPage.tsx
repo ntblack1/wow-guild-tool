@@ -12,7 +12,6 @@ import { authPath, getCurrentUser } from "../services/auth";
 import { friendlyError } from "../services/errors";
 import { createEvent, listEvents } from "../services/events";
 import { eventFilterFromValue, eventRoleNeeds, eventViewSearch, isEventToday } from "../services/format";
-import { listSignupsForEvents, signupsByEvent } from "../services/signups";
 import { eventFilters, type EventInput, type GuildEvent, type Signup } from "../types";
 
 const raidPresets = ["TOC+ZUG", "NAXX加双龙", "风暴毒蛇摸奖"] as const;
@@ -48,7 +47,6 @@ export function EventsPage() {
   const [creating, setCreating] = useState(false);
   const [eventCreatorOpen, setEventCreatorOpen] = useState(false);
   const [loading, setLoading] = useState(isSupabaseConfigured);
-  const [signupLoading, setSignupLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState("");
   const filter = eventFilterFromValue(searchParams.get("filter"));
   const eventSearch = eventViewSearch(filter);
@@ -72,26 +70,16 @@ export function EventsPage() {
   async function refresh() {
     const [eventRows, user] = await Promise.all([listEvents(), getCurrentUser()]);
     setEvents(eventRows);
+    setSignupMap(Object.fromEntries(eventRows.map((guildEvent) => [guildEvent.id, guildEvent.signups ?? []])));
     setUserId(user?.id ?? "");
     setLoading(false);
-
-    const eventIds = eventRows.map((guildEvent) => guildEvent.id);
-    try {
-      setSignupMap(signupsByEvent(eventIds, await listSignupsForEvents(eventIds)));
-    } catch {
-      setError("活动已读取，但报名阵容暂时未能加载，请稍后刷新。");
-    } finally {
-      setSignupLoading(false);
-    }
   }
 
   async function retryRefresh() {
     setError("");
-    setSignupLoading(true);
     try {
       await refresh();
     } catch (caught) {
-      setSignupLoading(false);
       setError(friendlyError(caught, "读取活动失败，请稍后重试。"));
     }
   }
@@ -101,7 +89,6 @@ export function EventsPage() {
     refresh()
       .catch((caught) => {
         setError(friendlyError(caught, "读取活动失败，请稍后重试。"));
-        setSignupLoading(false);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -248,7 +235,7 @@ export function EventsPage() {
           ))}
         </div>
         <div className="grid gap-3 md:grid-cols-2">
-          {filter === "我的报名" && signupLoading ? <LoadingState /> : filteredEvents.length ? filteredEvents.map((guildEvent) => {
+          {filteredEvents.length ? filteredEvents.map((guildEvent) => {
             const signups = signupMap[guildEvent.id];
             return (
               <EventCard

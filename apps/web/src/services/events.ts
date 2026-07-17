@@ -1,8 +1,13 @@
 import { requireSupabase } from "../lib/supabase";
-import type { EventInput, GuildEvent } from "../types";
+import type { EventInput, GuildEvent, Signup } from "../types";
 import { normalizeEventUpdate, normalizeNewEventInput } from "./validation";
 
-const eventSelect = "*, creator:profiles!events_created_by_fkey(id, display_name)";
+const eventSelect = "id,title,raid_name,starts_at,capacity,description,status,created_by,created_at,updated_at,creator:profiles!events_created_by_fkey(id,display_name)";
+export const eventRosterSelect = `${eventSelect},signups(id,event_id,character_id,user_id,combat_role,note,status,created_at,updated_at,character:characters(id,user_id,name,class_name,spec,combat_role,item_level,note,avatar_url,avatar_position_x,avatar_position_y,created_at,updated_at))`;
+
+export type GuildEventWithSignups = GuildEvent & {
+  signups: Signup[];
+};
 
 export function localDayStartIso(now = new Date()) {
   const start = new Date(now);
@@ -13,12 +18,13 @@ export function localDayStartIso(now = new Date()) {
 export async function listEvents(limit = 20) {
   const { data, error } = await requireSupabase()
     .from("events")
-    .select(eventSelect)
+    .select(eventRosterSelect)
     .gte("starts_at", localDayStartIso())
     .neq("status", "finished")
     .order("starts_at", { ascending: true })
+    .order("created_at", { referencedTable: "signups", ascending: true })
     .limit(limit)
-    .returns<GuildEvent[]>();
+    .returns<GuildEventWithSignups[]>();
 
   if (error) throw error;
   return data ?? [];
@@ -27,12 +33,13 @@ export async function listEvents(limit = 20) {
 export async function listHomepageEvents(limit = 6) {
   const { data, error } = await requireSupabase()
     .from("events")
-    .select(eventSelect)
+    .select(eventRosterSelect)
     .gte("starts_at", localDayStartIso())
     .neq("status", "finished")
     .order("starts_at", { ascending: true })
+    .order("created_at", { referencedTable: "signups", ascending: true })
     .limit(limit)
-    .returns<GuildEvent[]>();
+    .returns<GuildEventWithSignups[]>();
 
   if (error) throw error;
   return data ?? [];

@@ -6,6 +6,8 @@ const schemaUrl = new URL("../supabase/schema.sql", import.meta.url);
 const schema = await readFile(schemaUrl, "utf8");
 const contentMigrationUrl = new URL("../supabase/migrations/20260717_forum_content_management.sql", import.meta.url);
 const contentMigration = await readFile(contentMigrationUrl, "utf8");
+const signupEditMigrationUrl = new URL("../supabase/migrations/20260718_update_own_signup.sql", import.meta.url);
+const signupEditMigration = await readFile(signupEditMigrationUrl, "utf8");
 
 test("Supabase schema delegates credentials to Supabase Auth", () => {
   assert.doesNotMatch(schema, /create table if not exists public\.guild_accounts/i);
@@ -61,4 +63,21 @@ test("members cannot confirm their own signup during insertion", () => {
 
 test("only guild managers can delete raid reports", () => {
   assert.match(schema, /create policy "managers delete reports"[\s\S]*for delete to authenticated[\s\S]*public\.is_guild_manager\(\)/i);
+});
+
+test("members can edit only safe fields on their own open-event signup", () => {
+  for (const sql of [schema, signupEditMigration]) {
+    const functionBody = sql.match(/create or replace function public\.update_own_signup[\s\S]*?as \$\$([\s\S]*?)\$\$/i)?.[1] ?? "";
+    const assignments = functionBody.match(/update public\.signups as signup\s+set([\s\S]*?)\s+where/i)?.[1] ?? "";
+
+    assert.match(functionBody, /signup\.user_id = auth\.uid\(\)/i);
+    assert.match(functionBody, /character\.id = p_character_id and character\.user_id = auth\.uid\(\)/i);
+    assert.match(functionBody, /guild_event\.id = signup\.event_id and guild_event\.status = 'open'/i);
+    assert.match(assignments, /character_id = p_character_id/i);
+    assert.match(assignments, /combat_role = p_combat_role/i);
+    assert.match(assignments, /note =/i);
+    assert.doesNotMatch(assignments, /\b(status|event_id|user_id)\s*=/i);
+    assert.match(sql, /revoke all on function public\.update_own_signup\(uuid, uuid, text, text\) from public/i);
+    assert.match(sql, /grant execute on function public\.update_own_signup\(uuid, uuid, text, text\) to authenticated/i);
+  }
 });

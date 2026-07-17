@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Flag, HeartPulse, Lock, Pencil, Shield, Sparkles, Swords, Unlock, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Flag, HeartPulse, Lock, Pencil, Shield, Sparkles, Swords, Unlock, X } from "lucide-react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { CalendarDownloadButton } from "../components/CalendarDownloadButton";
 import { CharacterAvatar } from "../components/CharacterAvatar";
@@ -10,15 +10,16 @@ import { LoadingState } from "../components/LoadingState";
 import { RosterCopyButton } from "../components/RosterCopyButton";
 import { SectionTitle } from "../components/SectionTitle";
 import { ShareButton } from "../components/ShareButton";
+import { SignupEditor } from "../components/SignupEditor";
 import { StatusBadge } from "../components/StatusBadge";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { authPath, getCurrentUser } from "../services/auth";
 import { listCharacters } from "../services/characters";
 import { friendlyError } from "../services/errors";
 import { getEvent, updateEvent } from "../services/events";
-import { describeSignupConflict, eventRoleComposition, eventRoleNeeds, eventSignupSummary, formatDateTime, groupSignupsByRole, isActiveRosterSignup, statusLabel, suggestedSignupStatus, toDateTimeLocalValue } from "../services/format";
+import { describeSignupConflict, eventRoleComposition, eventRoleNeeds, eventSignupSummary, formatEventDateTime, groupSignupsByRole, isActiveRosterSignup, statusLabel, suggestedSignupStatus, toDateTimeLocalValue } from "../services/format";
 import { getProfile } from "../services/profiles";
-import { createSignup, deleteSignup, listEventSignups, updateSignupStatus } from "../services/signups";
+import { createSignup, deleteSignup, listEventSignups, updateOwnSignup, updateSignupStatus } from "../services/signups";
 import { validateEventCapacityAgainstRoster } from "../services/validation";
 import { signupStatuses, type CombatRole, type EventInput, type EventStatus, type GuildCharacter, type GuildEvent, type Profile, type Signup, type SignupStatus } from "../types";
 
@@ -33,8 +34,6 @@ const roleIcons = {
   N: HeartPulse,
   DPS: Swords,
 } as const;
-
-const signupRoles: CombatRole[] = ["T", "N", "DPS"];
 
 export function EventDetailPage() {
   const { eventId = "" } = useParams();
@@ -52,6 +51,7 @@ export function EventDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [confirmingFinish, setConfirmingFinish] = useState(false);
+  const [editingSignup, setEditingSignup] = useState(false);
   const [editingEvent, setEditingEvent] = useState(false);
   const [eventInput, setEventInput] = useState<EventInput | null>(null);
   const [error, setError] = useState("");
@@ -150,6 +150,34 @@ export function EventDetailPage() {
     }
   }
 
+  function startEditingSignup() {
+    if (!mySignup) return;
+    setConfirmingCancel(false);
+    setCharacterId(mySignup.character_id);
+    setSignupRole(mySignup.combat_role);
+    setSignupNote(mySignup.note ?? "");
+    setEditingSignup(true);
+  }
+
+  async function handleUpdateMySignup() {
+    if (!mySignup || !selectedCharacter || submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await updateOwnSignup(mySignup.id, {
+        character_id: selectedCharacter.id,
+        combat_role: signupRole,
+        note: signupNote.trim() || null,
+      });
+      setEditingSignup(false);
+      await refresh();
+    } catch (caught) {
+      setError(friendlyError(caught, "修改报名失败，请确认活动仍在报名中后再试。"));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function handleStatusChange(signup: Signup, status: SignupStatus) {
     setError("");
     try {
@@ -228,7 +256,7 @@ export function EventDetailPage() {
           <Link className="guild-button-secondary min-h-9 gap-1 px-3 py-1" to={eventsHref}>
             <ChevronLeft className="h-4 w-4" /> 返回活动列表
           </Link>
-          <ShareButton title={`${guildEvent.title}｜八块腹肌工会活动`} text={`${formatDateTime(guildEvent.starts_at)} 开团，点击查看阵容并报名。`} />
+          <ShareButton title={`${guildEvent.title}｜八块腹肌工会活动`} text={`${formatEventDateTime(guildEvent.starts_at)} 开团，点击查看阵容并报名。`} />
           {guildEvent.status !== "finished" ? <CalendarDownloadButton event={guildEvent} /> : null}
           <RosterCopyButton event={guildEvent} signups={signups} />
         </div>
@@ -250,7 +278,7 @@ export function EventDetailPage() {
             <StatusBadge>{statusLabel(guildEvent.status)}</StatusBadge>
           </div>
           <p className="mt-3 text-sm text-guild-muted">
-            {formatDateTime(guildEvent.starts_at)} · 上限 {guildEvent.capacity} 人 · {signupSummary.activeCount} 人占位 · {eventRoleNeeds(signups, guildEvent.capacity)}
+            {formatEventDateTime(guildEvent.starts_at)} · 上限 {guildEvent.capacity} 人 · {signupSummary.activeCount} 人占位 · {eventRoleNeeds(signups, guildEvent.capacity)}
             {signupSummary.standbyCount ? ` · 替补 ${signupSummary.standbyCount}` : ""}
             {signupSummary.leaveCount ? ` · 请假 ${signupSummary.leaveCount}` : ""}
           </p>
@@ -351,7 +379,24 @@ export function EventDetailPage() {
               {mySignup.status === "替补" ? "你当前是替补，团长确认后会更新状态" : mySignup.status === "请假" ? "你已请假，本次不占正式名额" : "你已在本场活动阵容中"}
             </p>
             {mySignup.note ? <p className="mt-2 rounded-md bg-guild-panelSoft px-3 py-2 text-sm text-guild-muted">备注：{mySignup.note}</p> : null}
-            {confirmingCancel ? (
+            {editingSignup ? (
+              <div className="mt-4 grid gap-3 border-t border-guild-line pt-4">
+                <SignupEditor
+                  characterId={characterId}
+                  characters={characters}
+                  combatRole={signupRole}
+                  hint={`报名状态“${mySignup.status}”会保持不变，不会重新排队。`}
+                  note={signupNote}
+                  onCharacterSelect={(character) => { setCharacterId(character.id); setSignupRole(character.combat_role); }}
+                  onCombatRoleChange={setSignupRole}
+                  onNoteChange={setSignupNote}
+                  onSubmit={() => void handleUpdateMySignup()}
+                  submitLabel={`保存修改 · ${selectedCharacter?.name ?? "我的角色"}`}
+                  submitting={submitting}
+                />
+                <button className="guild-button-secondary" disabled={submitting} onClick={() => setEditingSignup(false)} type="button">放弃修改</button>
+              </div>
+            ) : confirmingCancel ? (
               <div className="mt-3 grid gap-2 rounded-md border border-rose-200 bg-rose-50/80 p-3">
                 <p className="text-sm font-bold text-rose-600">确定取消本场报名吗？取消后席位可能被其他成员补上。</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -362,9 +407,10 @@ export function EventDetailPage() {
                 </div>
               </div>
             ) : (
-              <button className="guild-button-secondary mt-3 min-h-9" disabled={submitting} onClick={() => setConfirmingCancel(true)} type="button">
-                取消报名
-              </button>
+              <div className={`mt-3 grid gap-2 ${guildEvent.status === "open" ? "grid-cols-2" : ""}`}>
+                {guildEvent.status === "open" ? <button className="guild-button-secondary min-h-9" disabled={submitting} onClick={startEditingSignup} type="button"><Pencil className="h-3.5 w-3.5" /> 修改报名</button> : null}
+                <button className="guild-button-secondary min-h-9 text-rose-500" disabled={submitting} onClick={() => setConfirmingCancel(true)} type="button">取消报名</button>
+              </div>
             )}
           </div>
         ) : guildEvent.status !== "open" ? (
@@ -374,72 +420,20 @@ export function EventDetailPage() {
             <p className="mt-1 text-sm text-guild-muted">活动发起人重新开放后即可报名。</p>
           </div>
         ) : (
-          <div className="mt-4 grid gap-3">
-            <div>
-              <p className="mb-2 text-sm font-bold text-guild-ink">1. 选择出战角色</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {characters.map((character) => {
-                  const Icon = roleIcons[character.combat_role];
-                  const selected = character.id === characterId;
-                  return (
-                    <button
-                      aria-pressed={selected}
-                      className={`flex min-h-16 items-center gap-3 rounded-md border p-3 text-left transition ${selected ? "border-guild-gold bg-guild-panelSoft" : "border-guild-line bg-white/70"}`}
-                      key={character.id}
-                      onClick={() => {
-                        setCharacterId(character.id);
-                        setSignupRole(character.combat_role);
-                      }}
-                      type="button"
-                    >
-                      <CharacterAvatar avatarUrl={character.avatar_url} className="h-10 w-10" name={character.name} positionX={character.avatar_position_x} positionY={character.avatar_position_y} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-black text-guild-ink">{character.name}</span>
-                        <span className="flex items-center gap-1 truncate text-xs text-guild-muted"><Icon className="h-3.5 w-3.5 text-guild-gold" />{character.class_name} · {character.spec} · {roleTitles[character.combat_role]}</span>
-                      </span>
-                      {selected ? <Check className="h-5 w-5 shrink-0 text-emerald-600" /> : null}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-bold text-guild-ink">2. 选择本次职责</p>
-              <div aria-label="本次活动职责" className="grid grid-cols-3 gap-2" role="group">
-                {signupRoles.map((role) => {
-                  const Icon = roleIcons[role];
-                  const selected = signupRole === role;
-                  return (
-                    <button
-                      aria-pressed={selected}
-                      className={`flex min-h-12 items-center justify-center gap-1.5 rounded-md border px-2 text-sm font-black transition ${selected ? "border-guild-gold bg-guild-gold text-white shadow-soft" : "border-guild-line bg-white/70 text-guild-muted"}`}
-                      key={role}
-                      onClick={() => setSignupRole(role)}
-                      type="button"
-                    >
-                      <Icon className="h-4 w-4" /> {roleTitles[role]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <details className="rounded-md border border-guild-line bg-white/60 p-3">
-              <summary className="cursor-pointer text-sm font-bold text-guild-muted">补充备注（选填）</summary>
-              <textarea
-                className="guild-input mt-3"
-                maxLength={120}
-                onChange={(event) => setSignupNote(event.target.value)}
-                placeholder="例如：可能晚到 10 分钟、可切治疗"
-                rows={2}
-                value={signupNote}
-              />
-            </details>
-            <button className="guild-button min-h-14 text-base" disabled={submitting || !characterId} onClick={() => void handleSignup()} type="button">
-              {submitting ? "报名中" : selectedCharacter ? `${nextSignupStatus === "替补" ? "报名替补" : "确认报名"} · ${selectedCharacter.name}` : "确认报名"}
-            </button>
-            <p className="text-center text-xs text-guild-muted">
-              {nextSignupStatus === "替补" ? "正式名额已满，本次报名将自动进入替补。" : "报名后可随时取消，团长会在阵容中确认状态。"}
-            </p>
+          <div className="mt-4">
+            <SignupEditor
+              characterId={characterId}
+              characters={characters}
+              combatRole={signupRole}
+              hint={nextSignupStatus === "替补" ? "正式名额已满，本次报名将自动进入替补。" : "报名后可以修改或取消，团长会在阵容中确认状态。"}
+              note={signupNote}
+              onCharacterSelect={(character) => { setCharacterId(character.id); setSignupRole(character.combat_role); }}
+              onCombatRoleChange={setSignupRole}
+              onNoteChange={setSignupNote}
+              onSubmit={() => void handleSignup()}
+              submitLabel={selectedCharacter ? `${nextSignupStatus === "替补" ? "报名替补" : "确认报名"} · ${selectedCharacter.name}` : "确认报名"}
+              submitting={submitting}
+            />
           </div>
         )}
       </section>

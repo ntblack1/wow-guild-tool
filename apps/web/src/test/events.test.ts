@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { EventCard } from "../components/EventCard";
 import { requireSupabase } from "../lib/supabase";
-import { listEvents, listHomepageEvents, localDayStartIso } from "../services/events";
+import { eventRosterSelect, listEvents, listHomepageEvents, localDayStartIso } from "../services/events";
 import type { GuildEvent, Signup } from "../types";
 
 vi.mock("../lib/supabase", () => ({ requireSupabase: vi.fn() }));
@@ -38,7 +38,10 @@ describe("activity board helpers", () => {
 
     await listHomepageEvents(3);
 
-    expect(chain.select).toHaveBeenCalledWith(expect.stringContaining("creator:profiles"));
+    expect(chain.select).toHaveBeenCalledWith(eventRosterSelect);
+    expect(eventRosterSelect).toContain("creator:profiles");
+    expect(eventRosterSelect).toContain("signups(");
+    expect(eventRosterSelect).toContain("character:characters(");
     expect(chain.limit).toHaveBeenCalledWith(3);
   });
 
@@ -62,6 +65,7 @@ describe("activity board helpers", () => {
     expect(chain.gte).toHaveBeenCalledWith("starts_at", localDayStartIso());
     expect(chain.neq).toHaveBeenCalledWith("status", "finished");
     expect(chain.order).toHaveBeenCalledWith("starts_at", { ascending: true });
+    expect(chain.order).toHaveBeenCalledWith("created_at", { referencedTable: "signups", ascending: true });
   });
 
   it("does not show a false zero signup count while the homepage roster is loading", () => {

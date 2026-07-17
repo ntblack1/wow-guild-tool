@@ -1,8 +1,11 @@
 import { FormEvent, useEffect, useState } from "react";
-import { CalendarDays, Eye, EyeOff, KeyRound, LogOut, Save, ShieldCheck, UserRound } from "lucide-react";
+import { CalendarClock, CalendarDays, Eye, EyeOff, KeyRound, LogOut, Save, ShieldCheck, UserRound } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { CharacterAvatar } from "../components/CharacterAvatar";
 import { ErrorState } from "../components/ErrorState";
 import { Field } from "../components/Field";
+import { LoadingState } from "../components/LoadingState";
+import { StatusBadge } from "../components/StatusBadge";
 import { isSupabaseConfigured } from "../lib/supabase";
 import {
   createGuildAccount,
@@ -16,8 +19,9 @@ import {
   type GuildSessionUser,
 } from "../services/auth";
 import { friendlyError } from "../services/errors";
-import { userRoleLabel } from "../services/format";
+import { formatEventDateTime, userRoleLabel } from "../services/format";
 import { getProfile } from "../services/profiles";
+import { getMyNextSignup, type MyUpcomingSignup } from "../services/signups";
 import type { UserRole } from "../types";
 
 type PasswordVisibilityButtonProps = {
@@ -47,6 +51,8 @@ export function AuthPage() {
   const [currentUser, setCurrentUser] = useState<GuildSessionUser | null>(null);
   const [accountDisplayName, setAccountDisplayName] = useState("");
   const [accountRole, setAccountRole] = useState<UserRole>("member");
+  const [nextSignup, setNextSignup] = useState<MyUpcomingSignup | null>(null);
+  const [nextSignupLoading, setNextSignupLoading] = useState(false);
   const [accountPassword, setAccountPassword] = useState("");
   const [accountPasswordConfirm, setAccountPasswordConfirm] = useState("");
   const [loginUsername, setLoginUsername] = useState("");
@@ -67,8 +73,14 @@ export function AuthPage() {
   async function applyCurrentUser(user: GuildSessionUser) {
     setCurrentUser(user);
     setAccountDisplayName(user.displayName);
-    const profile = await getProfile(user.id).catch(() => null);
+    setNextSignupLoading(true);
+    const [profile, signup] = await Promise.all([
+      getProfile(user.id).catch(() => null),
+      getMyNextSignup(user.id).catch(() => null),
+    ]);
     setAccountRole(profile?.role ?? "member");
+    setNextSignup(signup);
+    setNextSignupLoading(false);
   }
 
   useEffect(() => {
@@ -80,6 +92,8 @@ export function AuthPage() {
           setCurrentUser(null);
           setAccountDisplayName("");
           setAccountRole("member");
+          setNextSignup(null);
+          setNextSignupLoading(false);
         }
       })
       .catch(() => setCurrentUser(null));
@@ -156,6 +170,8 @@ export function AuthPage() {
       setCurrentUser(null);
       setAccountDisplayName("");
       setAccountRole("member");
+      setNextSignup(null);
+      setNextSignupLoading(false);
       setAccountPassword("");
       setAccountPasswordConfirm("");
       setPassphrasePassed(false);
@@ -240,6 +256,38 @@ export function AuthPage() {
               {accountRole === "member" ? "可以管理角色、报名活动、发帖和评论。" : "拥有成员功能，并可确认报名、管理活动、置顶帖子和维护战报。"}
             </p>
           </div>
+          <section aria-labelledby="my-next-event-title" className="rounded-md border border-guild-gold/35 bg-[linear-gradient(135deg,#FFF0D6,#FFFFFF_68%,#DDF4FF)] p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-guild-gold">MY NEXT RAID</p>
+                <h3 className="font-black text-guild-ink" id="my-next-event-title">我的下一场</h3>
+              </div>
+              <CalendarClock aria-hidden="true" className="h-5 w-5 text-guild-gold" />
+            </div>
+            {nextSignupLoading ? (
+              <div className="mt-3"><LoadingState compact label="正在读取我的活动" /></div>
+            ) : nextSignup?.event ? (
+              <Link className="mt-3 flex items-center gap-3 rounded-md bg-white/80 p-3 transition hover:bg-white" to={`/events/${nextSignup.event.id}`}>
+                <CharacterAvatar
+                  avatarUrl={nextSignup.character?.avatar_url}
+                  className="h-11 w-11"
+                  name={nextSignup.character?.name ?? "我"}
+                  positionX={nextSignup.character?.avatar_position_x}
+                  positionY={nextSignup.character?.avatar_position_y}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-black text-guild-ink">{nextSignup.event.title}</span>
+                  <span className="mt-1 block text-xs text-guild-muted">{formatEventDateTime(nextSignup.event.starts_at)} · {nextSignup.character?.name ?? "我的角色"}</span>
+                </span>
+                <StatusBadge>{nextSignup.status}</StatusBadge>
+              </Link>
+            ) : (
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-md bg-white/75 p-3">
+                <p className="text-sm text-guild-muted">还没有报名后续活动。</p>
+                <Link className="shrink-0 text-sm font-black text-guild-gold" to="/events">去报名 →</Link>
+              </div>
+            )}
+          </section>
           <form className="grid gap-2" onSubmit={handleDisplayNameUpdate}>
             <Field label="工会昵称">
               <input autoComplete="nickname" className="guild-input" maxLength={20} name="nickname" onChange={(event) => setAccountDisplayName(event.target.value)} required value={accountDisplayName} />

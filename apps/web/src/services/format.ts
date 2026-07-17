@@ -9,13 +9,21 @@ export function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+export function formatEventDateTime(value: string) {
+  const date = new Date(value);
+  const monthDay = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" }).format(date);
+  const weekday = new Intl.DateTimeFormat("zh-CN", { weekday: "short" }).format(date);
+  const time = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(date);
+  return `${monthDay} ${weekday} ${time}`;
+}
+
 const rosterRoleLabels: Record<CombatRole, string> = { T: "坦克", N: "治疗", DPS: "输出" };
 
 export function buildRosterShareText(event: GuildEvent, signups: Signup[], url = "") {
   const active = signups.filter((signup) => signup.status !== "替补" && signup.status !== "请假");
   const lines = [
     `【八块腹肌工会】${event.title}`,
-    `时间：${formatDateTime(event.starts_at)}`,
+    `时间：${formatEventDateTime(event.starts_at)}`,
     `阵容：${active.length}/${event.capacity} 人`,
   ];
 

@@ -15,7 +15,6 @@ import { listHomepageEvents } from "../services/events";
 import { eventsExcept, isEventToday, nextEvent } from "../services/format";
 import { listPosts, selectHomepageNotice } from "../services/posts";
 import { listReports } from "../services/reports";
-import { listSignupsForEvents, signupsByEvent } from "../services/signups";
 import type { GuildEvent, Post, Report, Signup } from "../types";
 
 const GuildMemberShowcase = lazy(() => import("../components/GuildMemberShowcase").then((module) => ({ default: module.GuildMemberShowcase })));
@@ -47,6 +46,7 @@ export function HomePage() {
       const reportRows = reportResult.status === "fulfilled" ? reportResult.value : [];
       const user = userResult.status === "fulfilled" ? userResult.value : null;
       setEvents(eventRows);
+      setSignupMap(Object.fromEntries(eventRows.map((event) => [event.id, event.signups ?? []])));
       setPosts(postRows);
       setLatestReport(reportRows[0] ?? null);
       setUserId(user?.id ?? "");
@@ -55,16 +55,6 @@ export function HomePage() {
         setError("部分大厅内容暂时未能读取，可以继续使用其他功能。");
       }
       setLoading(false);
-
-      const today = eventRows.find((event) => isEventToday(event));
-      const featured = today ?? nextEvent(eventRows);
-      const eventIds = [...new Set([featured?.id, ...eventRows.slice(0, 3).map((event) => event.id)].filter((id): id is string => Boolean(id)))];
-      try {
-        const signupRows = await listSignupsForEvents(eventIds);
-        setSignupMap(signupsByEvent(eventIds, signupRows));
-      } catch {
-        setError("报名阵容暂时未能读取，活动和其他功能仍可正常使用。");
-      }
     }
 
     void loadHome();

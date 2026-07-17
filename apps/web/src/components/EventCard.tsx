@@ -1,6 +1,6 @@
 import { CalendarClock, HeartPulse, Shield, Swords, UserRound, Users } from "lucide-react";
 import { Link } from "react-router-dom";
-import { eventActionLabel, eventRoleComposition, eventRoleNeeds, eventSignupSummary, formatDateTime, statusLabel } from "../services/format";
+import { eventActionLabel, eventRoleComposition, eventRoleNeeds, eventSignupSummary, formatEventDateTime, statusLabel } from "../services/format";
 import type { GuildEvent, Signup } from "../types";
 import { CharacterAvatar } from "./CharacterAvatar";
 import { StatusBadge } from "./StatusBadge";
@@ -53,7 +53,7 @@ export function EventCard({ event, signupCount, roleNeed = "缺口待确认", si
         </span>
         <span className="inline-flex items-center gap-2">
           <CalendarClock className="h-4 w-4 text-guild-gold" />
-          {formatDateTime(event.starts_at)}
+          {formatEventDateTime(event.starts_at)}
         </span>
         <span className="inline-flex items-center gap-2">
           <Users className="h-4 w-4 text-guild-mint" />

@@ -9,6 +9,7 @@ import {
   eventRoleNeeds,
   eventSignupSummary,
   eventViewSearch,
+  formatEventDateTime,
   forumCategoryFromValue,
   forumQueryFromValue,
   forumSortModeFromValue,
@@ -153,6 +154,14 @@ describe("format helpers", () => {
     const value = "2026-07-16T12:00:00.000Z";
     const expected = new Date(new Date(value).getTime() - new Date(value).getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
     expect(toDateTimeLocalValue(value)).toBe(expected);
+  });
+
+  it("includes the weekday in raid times to prevent date mix-ups", () => {
+    const saturdayRaid = new Date(2026, 6, 18, 20, 0, 0);
+    const formatted = formatEventDateTime(saturdayRaid.toISOString());
+
+    expect(formatted).toContain("周六");
+    expect(formatted).toContain("20:00");
   });
 
   it("builds a WeChat-ready roster grouped by role and signup status", () => {
