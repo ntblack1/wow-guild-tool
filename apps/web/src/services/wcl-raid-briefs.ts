@@ -1,4 +1,39 @@
-import type { WclRaidBrief } from "../data/wclRaidBriefs";
+import type { WclMonthlyReport, WclRaidBrief } from "../data/wclRaidBriefs";
+
+export type WclDeathRank = {
+  deaths: number;
+  names: string[];
+  rank: number;
+};
+
+export function getWclMonthlyDeathStats(reports: WclMonthlyReport[]) {
+  const totals = new Map<string, number>();
+
+  reports.forEach((report) => {
+    report.deathEntries.forEach((entry) => {
+      totals.set(entry.name, (totals.get(entry.name) ?? 0) + entry.deaths);
+    });
+  });
+
+  const ranking = [...totals.entries()]
+    .map(([name, deaths]) => ({ name, deaths }))
+    .sort((left, right) => right.deaths - left.deaths || left.name.localeCompare(right.name, "zh-CN"));
+  const deathCounts = [...new Set(ranking.map((entry) => entry.deaths))];
+  const topRanks: WclDeathRank[] = deathCounts.slice(0, 2).map((deaths, index) => ({
+    deaths,
+    names: ranking.filter((entry) => entry.deaths === deaths).map((entry) => entry.name),
+    rank: index + 1,
+  }));
+
+  return {
+    firstPlace: topRanks[0] ?? null,
+    participantWithDeathsCount: ranking.length,
+    ranking,
+    reportCount: reports.length,
+    secondPlace: topRanks[1] ?? null,
+    totalDeaths: ranking.reduce((total, entry) => total + entry.deaths, 0),
+  };
+}
 
 export function getWclRaidBriefStats(brief: WclRaidBrief) {
   const totalDeaths = brief.deathEntries.reduce((total, entry) => total + entry.deaths, 0);

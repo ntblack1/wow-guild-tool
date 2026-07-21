@@ -1,6 +1,6 @@
-import { ExternalLink, Flame, Info, ShieldCheck, Skull, Swords, Users } from "lucide-react";
-import { wclRaidBriefs } from "../data/wclRaidBriefs";
-import { getWclRaidBriefStats } from "../services/wcl-raid-briefs";
+import { Crown, ExternalLink, Flame, Info, Medal, ShieldCheck, Skull, Swords, Users } from "lucide-react";
+import { july2026WclDeathBoard, wclRaidBriefs } from "../data/wclRaidBriefs";
+import { getWclMonthlyDeathStats, getWclRaidBriefStats } from "../services/wcl-raid-briefs";
 import { GuildCard } from "./GuildCard";
 import { SectionTitle } from "./SectionTitle";
 
@@ -10,13 +10,65 @@ function formatReportDate(date: string) {
 }
 
 export function WclFunBriefs() {
+  const monthlyStats = getWclMonthlyDeathStats(july2026WclDeathBoard.reports);
+  const firstPlace = monthlyStats.firstPlace;
+  const secondPlace = monthlyStats.secondPlace;
+
   return (
     <section className="space-y-3">
       <SectionTitle
         action={<span className="guild-pill shrink-0">数据来自 WCL</span>}
-        eyebrow="WCL FUN REPORT"
-        title="八块腹肌趣味简报"
+        eyebrow="MONTHLY WCL REPORT"
+        title="本月战报"
       />
+
+      <GuildCard className="overflow-hidden border-guild-gold/60 bg-[radial-gradient(circle_at_top_left,#FFE4B8,transparent_46%),linear-gradient(145deg,#FFF8EC,#FFFFFF_52%,#D7F0FF)] p-0">
+        <article className="p-4 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black tracking-[0.16em] text-guild-ember">死亡次数月榜</p>
+              <h3 className="mt-1 text-2xl font-black text-guild-ink">{july2026WclDeathBoard.monthLabel}</h3>
+              <p className="mt-1 text-sm font-semibold text-guild-muted">
+                以{july2026WclDeathBoard.characterName}参战的 {monthlyStats.reportCount} 份报告累计 · 共 {monthlyStats.totalDeaths} 次死亡
+              </p>
+            </div>
+            <a className="inline-flex min-h-9 items-center gap-1 text-xs font-black text-guild-gold hover:text-guild-ember" href={july2026WclDeathBoard.characterUrl} rel="noreferrer" target="_blank">
+              查看角色 WCL <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </div>
+
+          <div className="mt-5 grid gap-3 lg:grid-cols-[0.8fr_1.2fr]">
+            <div className="rounded-2xl border border-amber-300/70 bg-amber-50/85 p-5 shadow-soft">
+              <div className="flex items-center gap-2 text-sm font-black text-amber-700">
+                <Crown className="h-5 w-5" /> 死亡第一名
+              </div>
+              <p className="mt-3 text-4xl font-black leading-tight text-guild-ink sm:text-5xl">{firstPlace?.names.join("、") ?? "无人"}</p>
+              <p className="mt-2 text-xl font-black text-guild-ember">{firstPlace?.deaths ?? 0} 次死亡</p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-300/80 bg-white/80 p-5 shadow-soft">
+              <div className="flex flex-wrap items-center gap-2 text-sm font-black text-slate-600">
+                <Medal className="h-5 w-5" />
+                <span>死亡第二名</span>
+                {secondPlace && secondPlace.names.length > 1 ? <span className="rounded-full bg-slate-200/80 px-2 py-0.5 text-xs">{secondPlace.names.length} 人并列</span> : null}
+              </div>
+              <p className="mt-3 text-xl font-black leading-relaxed text-guild-ink sm:text-2xl">{secondPlace?.names.join("、") ?? "无人"}</p>
+              <p className="mt-2 text-lg font-black text-slate-600">{secondPlace?.deaths ?? 0} 次死亡</p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2 border-t border-guild-line/80 pt-4">
+            {july2026WclDeathBoard.reports.map((report, index) => (
+              <a className="guild-pill gap-1 hover:border-guild-gold hover:text-guild-gold" href={report.sourceUrl} key={report.id} rel="noreferrer" target="_blank">
+                {formatReportDate(report.date)}{july2026WclDeathBoard.reports.filter((item) => item.date === report.date).length > 1
+                  ? ` · 第 ${july2026WclDeathBoard.reports.filter((item, itemIndex) => item.date === report.date && itemIndex <= index).length} 份`
+                  : ""}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            ))}
+          </div>
+        </article>
+      </GuildCard>
 
       <div className="flex gap-2 rounded-guild border border-guild-line bg-white/55 p-3 text-xs leading-5 text-guild-muted">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-guild-gold" />
